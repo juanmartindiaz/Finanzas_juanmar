@@ -38,6 +38,12 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-021 | Paquete Android | `com.juanmartin.gestor_finanzas` | Aceptada |
 | ADR-022 | Documentación | 5 documentos en `docs/` + README raíz | Aceptada |
 | ADR-023 | Capturas | Revisión y confirmación humana antes de guardar | Aceptada |
+| ADR-024 | Transferencias | Dos montos: origen y destino, con `moneda_destino` | Aceptada |
+| ADR-025 | Estados de transacción | `estado` (confirmada/pendiente) y `origen` (manual/bot/importado) desde el inicio | Aceptada |
+| ADR-026 | Tasas de cambio | Manuales en la Fase 1; conversión automática en la Fase 4 | Aceptada |
+| ADR-027 | Semilla de categorías | Semilla una sola vez y predefinidas editables/borrables | Aceptada |
+| ADR-028 | Catálogo de monedas | Lista fija en código, sin tabla | Aceptada |
+| ADR-029 | Borrado lógico | Índices únicos parciales sobre registros vigentes | Aceptada |
 
 ---
 
@@ -316,6 +322,78 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Contexto | El OCR se equivoca con recibos arrugados y la transcripción confunde "dieciocho" con "ochenta". Un gasto mal registrado es peor que un gasto que espera dos minutos. |
 | Consecuencias | Datos confiables y corrección fácil antes de guardar; el flujo tiene un paso extra que el usuario debe atender; la bandeja de pendientes debe ser visible y no acumularse sin aviso. |
 | Alternativas descartadas | Guardado automático con edición posterior (los errores se quedan y contaminan reportes); confirmación solo para imágenes (la voz también se equivoca); reglas mágicas de confianza según el texto (impredecibles). |
+
+## ADR-024 — Transferencias con dos montos
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-024 |
+| Fecha | 2026-11-23 |
+| Estado | Aceptada |
+| Decisión | Una transferencia guarda **`monto_centavos`** (lo que sale de la cuenta origen) y **`monto_destino_centavos`** (lo que entra en la cuenta destino), junto con **`moneda_destino`**. |
+| Contexto | Cuando las cuentas están en monedas distintas, el usuario conoce los dos montos reales (lo que le descontaron y lo que le abonaron) y no quiere que la app derive el destino con una tasa. |
+| Consecuencias | La tasa efectiva se calcula de los dos montos (`monto_destino_centavos / monto_centavos`) y se guarda en la transacción; el saldo de cada cuenta usa su propio monto y no necesita multiplicar por la tasa; si las monedas son iguales, ambos montos coinciden. |
+| Alternativas descartadas | Derivar el monto destino con la tasa del día (no coincide con el banco y obliga a corregir después); guardar solo el monto origen (el saldo de la cuenta destino queda mal). |
+
+## ADR-025 — `estado` y `origen` en `transaccion`
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-025 |
+| Fecha | 2026-11-23 |
+| Estado | Aceptada |
+| Decisión | La transacción incluye **`estado`** (`confirmada` por defecto, `pendiente` reservado para el bot) y **`origen`** (`manual` por defecto, `bot`, `importado`) desde la Fase 1. |
+| Contexto | La Fase 2 crea capturas pendientes y conviene distinguirlas sin migrar la tabla después; también se quiere saber de dónde salió cada movimiento. |
+| Consecuencias | El alta manual siempre crea `confirmada`/`manual`; solo el bot (Fase 2) crea `pendiente`; los reportes y saldos solo cuentan las confirmadas; agregar un valor nuevo exige cambiar el `CHECK` y la migración. |
+| Alternativas descartadas | Agregar las columnas en la Fase 2 (migración con datos reales); inferir el origen por la cuenta o por el texto de la nota (frágil y ambiguo). |
+
+## ADR-026 — Tasas de cambio manuales en la Fase 1
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-026 |
+| Fecha | 2026-11-23 |
+| Estado | Aceptada |
+| Decisión | La tabla **`tasa_cambio`** se crea en la Fase 1 con **`fuente = 'manual'`**; la conversión automática diaria y las fuentes `trm`/`api_abierta` se posponen a la Fase 4. |
+| Contexto | El dashboard necesita consolidar los saldos en la moneda base desde el MVP, y en la Fase 1 todavía no hay cliente de red ni tarea diaria de descarga. |
+| Consecuencias | El usuario ingresa las tasas a mano y las puede corregir; si falta una tasa, el monto se marca como "sin convertir" en vez de inventarlo; la descarga automática llega después sin cambiar el esquema. |
+| Alternativas descartadas | Esperar a la Fase 4 para las tasas (el dashboard quedaría incompleto); descargar tasas en la Fase 1 (sale del alcance y mete red y errores de conexión antes de tiempo). |
+
+## ADR-027 — Semilla de categorías y predefinidas editables/borrables
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-027 |
+| Fecha | 2026-11-23 |
+| Estado | Aceptada |
+| Decisión | La semilla inicial de categorías y subcategorías corre **una sola vez** (clave `seed_categorias_v1` y verificación de tabla vacía); **`predefinida = 1` es informativo** y esas categorías se pueden editar, archivar o borrar si no tienen movimientos. |
+| Contexto | El dueño quiere control total sobre sus categorías y no que reaparezcan las que borró. |
+| Consecuencias | Si borra todas las categorías, no se reinsertan; con movimientos no se permite borrar y se ofrece archivar; la semilla debe ser exacta y estar documentada. |
+| Alternativas descartadas | Reinsertar las predefinidas al abrir la app (impide borrarlas); bloquear las predefinidas (quita el control que pidió el dueño). |
+
+## ADR-028 — Catálogo de monedas en código
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-028 |
+| Fecha | 2026-11-23 |
+| Estado | Aceptada |
+| Decisión | El catálogo de monedas es una **lista fija de monedas principales en código** (COP como base), en lugar de una tabla en la base con su pantalla de administración. |
+| Contexto | Se necesita validar y mostrar monedas, pero administrar monedas no es una función del producto y una tabla extra agrega migraciones y pantallas. |
+| Consecuencias | Agregar una moneda nueva exige tocar código en una fase futura; la validación es inmediata y no hay datos maestros que mantener; el listado debe ir en un solo lugar del código. |
+| Alternativas descartadas | Tabla `moneda` administrable (más piezas para algo que casi no cambia); texto libre de 3 letras (errores de tipeo y códigos inválidos). |
+
+## ADR-029 — Borrado lógico con índices únicos parciales
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-029 |
+| Fecha | 2026-11-23 |
+| Estado | Aceptada |
+| Decisión | Los nombres siguen siendo únicos, pero solo **entre registros vigentes**: los índices únicos son **parciales** con `WHERE eliminado_en IS NULL`. |
+| Contexto | Con borrado lógico, un nombre "borrado" seguiría ocupando el índice y no se podría volver a usar, aunque el usuario ya no lo vea. |
+| Consecuencias | Se puede reutilizar un nombre después de borrar; los índices se crean a mano en la migración porque Drift no los genera solo; dos registros con el mismo nombre pueden convivir si uno está eliminado. |
+| Alternativas descartadas | Índice único global (impide reutilizar nombres); quitar el único y validar solo en la app (carreras y datos sucios). |
 
 ---
 

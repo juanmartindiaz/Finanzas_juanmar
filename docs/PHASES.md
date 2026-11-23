@@ -108,7 +108,7 @@ Tablas de base de datos, servidores HTTP, token, Baileys, ML Kit, whisper, notif
 
 ---
 
-## Fase 1 — MVP local
+## Fase 1 — MVP local *(completada)*
 
 ### Objetivo
 
@@ -116,41 +116,42 @@ Tener una app que el dueño pueda usar todos los días para registrar sus movimi
 
 ### Alcance
 
-- Base de datos real con Drift: `cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta` y `configuracion` (esquema de la Fase 1 en [DATA_MODEL.md](DATA_MODEL.md), §7).
-- Migración inicial `schemaVersion = 1` y el hábito de copiar la base antes de migrar.
-- Categorías y subcategorías predefinidas en español (Alimentación, Transporte, Vivienda, Salud, Ocio, Educación, Deudas, Ingresos…) con icono y color.
-- CRUD de cuentas (los 7 tipos) y de categorías/etiquetas, con archivado en lugar de borrado.
-- Registro manual de ingresos, gastos y transferencias, con fecha, hora, nota, etiquetas y moneda.
-- Dashboard: saldo total, saldo por cuenta, gasto del mes y últimos movimientos.
-- Bloqueo de la app con PIN y biometría opcional (`local_auth`), con PIN como respaldo.
-- Formato de moneda en COP ($1.234.567) y formato de fecha local, todo en `core/`.
-- Pruebas unitarias de las fórmulas de dinero (suma, conversión, saldo).
+- Base Drift con `cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta`, `tasa_cambio`, `configuracion` y la estructura de `recibo` (vacía); `schemaVersion = 1` y copia previa a migrar (esquema en [DATA_MODEL.md](DATA_MODEL.md), §7).
+- CRUD de cuentas (los 7 tipos): se borran si no hay movimientos o se desactivan si los hay.
+- Categorías, subcategorías y etiquetas con CRUD y semilla inicial exacta (Gastos: Alimentación con Supermercado/Restaurantes/Domicilios, Transporte con Público/Gasolina/Taxi-App, Hogar y Servicios, Salud, Educación, Ocio, Ropa, Compras, Mascotas, Otros; Ingresos: Salario, Freelance/Honorarios, Ventas, Regalos, Rendimientos, Otros); se borran si no hay movimientos y se archivan si los hay.
+- Transacciones manuales de ingreso, gasto y transferencia (con monto origen y monto destino cuando las monedas difieren), edición, borrado lógico, filtros por cuenta, categoría, tipo, fechas y etiqueta, y búsqueda en la nota.
+- Dashboard: saldos agrupados por tipo (Efectivo; Bancos incluye banco/nequi/daviplata; Tarjetas; Ahorro; Inversión), subtotales por moneda, total consolidado a la moneda base con tasas manuales, últimas 10 transacciones y botón flotante "+".
+- Ajustes: moneda base, tasas manuales por par, gestión de categorías, subcategorías y etiquetas y acceso a cuentas.
+- Formato COP `$ 1.234.567` con locale `es-CO`; pruebas de saldos, transferencias, semilla, multimoneda y validaciones.
 
 ### Entregables
 
 | Entregable | Dónde |
 |---|---|
-| Tablas Drift, DAOs y migraciones | `app/lib/data/database/` |
+| Tablas Drift, DAOs y migraciones | `app/lib/data/` |
 | Repositorios por entidad | `app/lib/data/repositories/` |
-| Entidades y cálculos (saldo, totales) | `app/lib/domain/entities/` + `app/lib/domain/usecases/` |
+| Entidades y cálculos (saldo, totales) | `app/lib/domain/` |
 | Pantallas de cuentas y transacciones | `app/lib/features/accounts/` + `app/lib/features/transactions/` |
-| Dashboard con saldos (se crea en esta fase) | `app/lib/features/dashboard/` |
-| Bloqueo con PIN/biometría | `app/lib/services/` + nueva carpeta de pantalla inicial |
+| Dashboard con saldos | `app/lib/features/dashboard/` |
+| Ajustes (moneda base, tasas, categorías, etiquetas) | `app/lib/features/settings/` |
 | Formato de moneda y fecha | `app/lib/core/utils/` |
 | Pruebas de dinero | `app/test/` |
 
 ### Criterio de terminado
 
-1. Se crea una cuenta Efectivo con saldo inicial, se registran 3 movimientos y el saldo mostrado coincide con el cálculo a mano.
-2. Una transferencia entre dos cuentas deja el **total** igual y mueve el saldo de las dos.
-3. Cerrar y volver a abrir la app conserva todos los datos.
-4. Borrar una categoría con transacciones está bloqueado y ofrece archivarla.
-5. No existe ningún `double` en el manejo de montos (revisión de código).
-6. Las pruebas de dinero pasan; el APK no pide permisos raros.
+1. Se crean, editan y borran cuentas de los 7 tipos y los saldos se ven en pantalla.
+2. Se crean, editan y borran categorías, subcategorías y etiquetas; con movimientos se archivan en lugar de borrarse.
+3. Se registran ingresos, gastos y transferencias con todos los campos (incluidos monto destino y moneda destino).
+4. El dashboard muestra los saldos por tipo, los subtotales por moneda y el consolidado con tasa manual.
+5. Los filtros de transacciones (cuenta, categoría, tipo, fechas y etiqueta) y la búsqueda en la nota funcionan.
+6. Al borrar una cuenta sin movimientos se borra; si tiene movimientos, la app ofrece desactivarla.
+7. `flutter analyze` termina limpio y `flutter test` en verde.
+8. La app corre en el emulador API 36 sin crashes.
+9. La documentación queda actualizada con lo que cambió.
 
 ### Fuera de alcance
 
-OCR, audio, bot, modo mock, presupuestos, deudas, metas, reportes, PDF, divisas, Drive y sincronización de cualquier tipo.
+OCR, audio, bot/WhatsApp, modo mock, presupuestos, deudas, créditos, metas, recurrentes, reportes/PDF, **conversión automática** de monedas, Drive, biometría/PIN.
 
 ### Riesgos
 
@@ -159,6 +160,7 @@ OCR, audio, bot, modo mock, presupuestos, deudas, metas, reportes, PDF, divisas,
 | Migraciones mal hechas | Pérdida de datos al actualizar | Copia previa obligatoria y probar migración con base de la fase anterior |
 | Fechas y zona horaria | Movimientos en el día equivocado | Fecha de calendario en texto (ADR-005/DATA_MODEL §1.1) |
 | Redondeo al convertir | Centavos perdidos | Conversión solo al mostrar; montos siempre enteros |
+| Tasas manuales mal ingresadas | Totales consolidados equivocados | Se muestran y se pueden corregir; si falta tasa, la cuenta se marca como sin convertir |
 | Pantallas que crecen sin control | App lenta y difícil de mantener | Una carpeta por función en `features/` y reglas de capas |
 
 ---
@@ -331,6 +333,7 @@ Convertir la app en algo que se use a diario sin sustos: sin caídas, sin datos 
 - APK final firmado, versión 1.0.0, `minSdk 24`.
 - Guía paso a paso de Termux con número secundario, wake-lock y arranque automático.
 - Documentación final actualizada (este plan, contrato y modelo si cambiaron).
+- Bloqueo con PIN y biometría opcional (`local_auth`), pospuesto desde la Fase 1.
 
 ### Entregables
 
@@ -371,7 +374,7 @@ Al terminar cada fase se anota aquí la fecha, el criterio cumplido y cualquier 
 | Fase | Fecha de cierre | Desviaciones |
 |---|---|---|
 | 0 | 2026-11-23 | Ninguna: entorno, documentación y esqueletos entregados |
-| 1 | — | — |
+| 1 | 2026-11-23 | Ninguna: MVP local con Drift, CRUD de cuentas/categorías/etiquetas, transacciones manuales, dashboard multimoneda y 37 pruebas en verde |
 | 2 | — | — |
 | 3 | — | — |
 | 4 | — | — |

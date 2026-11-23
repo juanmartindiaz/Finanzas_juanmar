@@ -1,21 +1,83 @@
 import 'package:go_router/go_router.dart';
-import 'package:material_ui/material_ui.dart';
 
-import '../../features/welcome/welcome_screen.dart';
+import '../../features/accounts/cuenta_form_screen.dart';
+import '../../features/accounts/cuentas_list_screen.dart';
+import '../../features/dashboard/dashboard_screen.dart';
+import '../../features/settings/ajustes_screen.dart';
+import '../../features/settings/categorias_screen.dart';
+import '../../features/settings/etiquetas_screen.dart';
+import '../../features/settings/monedas_screen.dart';
+import '../../features/transactions/transaccion_form_screen.dart';
+import '../../features/transactions/transacciones_list_screen.dart';
 
-/// Configuración de rutas de la aplicación.
-///
-/// Fase 0: una única ruta de bienvenida. A partir de la Fase 1 se añadirán las
-/// rutas de cuentas, transacciones, presupuestos, deudas, metas, reportes,
-/// captura y ajustes.
+/// Rutas de la aplicación (Fase 1).
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   routes: <RouteBase>[
     GoRoute(
       path: '/',
-      name: 'bienvenida',
-      builder: (BuildContext context, GoRouterState state) =>
-          const WelcomeScreen(),
+      name: 'dashboard',
+      builder: (context, state) => const DashboardScreen(),
+    ),
+    GoRoute(
+      path: '/cuentas',
+      name: 'cuentas',
+      builder: (context, state) => const CuentasListScreen(),
+      routes: <RouteBase>[
+        GoRoute(
+          path: 'nueva',
+          name: 'cuenta-nueva',
+          builder: (context, state) => const CuentaFormScreen(),
+        ),
+        GoRoute(
+          path: ':id/editar',
+          name: 'cuenta-editar',
+          builder: (context, state) => CuentaFormScreen(
+            cuentaId: int.tryParse(state.pathParameters['id'] ?? ''),
+          ),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/transacciones',
+      name: 'transacciones',
+      builder: (context, state) => const TransaccionesListScreen(),
+      routes: <RouteBase>[
+        GoRoute(
+          path: 'nueva',
+          name: 'transaccion-nueva',
+          builder: (context, state) => const TransaccionFormScreen(),
+        ),
+        GoRoute(
+          path: ':id/editar',
+          name: 'transaccion-editar',
+          builder: (context, state) => TransaccionFormScreen(
+            transaccionId: int.tryParse(state.pathParameters['id'] ?? ''),
+          ),
+        ),
+      ],
+    ),
+    GoRoute(
+      path: '/ajustes',
+      name: 'ajustes',
+      builder: (context, state) => const AjustesScreen(),
+      routes: <RouteBase>[
+        GoRoute(
+          path: 'categorias',
+          name: 'ajustes-categorias',
+          builder: (context, state) => const CategoriasScreen(),
+        ),
+        GoRoute(
+          path: 'etiquetas',
+          name: 'ajustes-etiquetas',
+          builder: (context, state) => const EtiquetasScreen(),
+        ),
+        GoRoute(
+          path: 'monedas',
+          name: 'ajustes-monedas',
+          builder: (context, state) => const MonedasScreen(),
+        ),
+      ],
     ),
   ],
 );

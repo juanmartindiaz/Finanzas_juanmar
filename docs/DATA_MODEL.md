@@ -1,6 +1,6 @@
 # Modelo de datos — Gestor Finanzas
 
-**Estado: solo documentado. En la Fase 0 no hay ninguna tabla creada.** La base SQLite se implementa con Drift en la **Fase 1** (cuentas, categorías, transacciones), se amplía en la **Fase 3** (presupuestos, deudas, metas, recurrentes) y en la **Fase 4** (tasas de cambio y respaldo). Este documento es el acuerdo sobre qué se guarda y con qué reglas.
+**Estado: aprobado para la Fase 1; todavía no hay tablas creadas.** La base SQLite se implementa con Drift en la **Fase 1** (`cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta`, `tasa_cambio`, `configuracion` y la estructura vacía de `recibo`), se amplía en la **Fase 3** (presupuestos, deudas, créditos, metas y recurrentes) y en la **Fase 4** (tasas automáticas y respaldo). Este documento es el acuerdo sobre qué se guarda y con qué reglas.
 
 Complementos: cómo se calculan los saldos está en este mismo documento, §6; las capturas que llegan por WhatsApp, en [API_CONTRACT.md](API_CONTRACT.md), §8.3.
 
@@ -19,7 +19,7 @@ Complementos: cómo se calculan los saldos está en este mismo documento, §6; l
 | Enum | `TEXT` con `CHECK (...)` | `estado = 'pendiente'` |
 | Auditoría | `creado_en`, `actualizado_en` (epoch ms, no nulos) | — |
 | Borrado lógico | `eliminado_en` (`NULL` = vigente) | `eliminado_en IS NULL` |
-| Nombres | Tablas y campos en **singular** y en español | `transaccion`, `saldo_centavos` |
+| Nombres | Tablas y campos en **singular** y en español | `transaccion`, `saldo_inicial_centavos` |
 
 ### 1.1 Por qué dos tipos de fecha
 
@@ -83,14 +83,14 @@ En todas las tablas con auditoría: `creado_en` y `actualizado_en` son obligator
 | `id` | INTEGER | No | PK autoincremental |
 | `nombre` | TEXT | No | Único entre cuentas vigentes; 1–60 caracteres |
 | `tipo` | TEXT | No | `efectivo`, `banco`, `nequi`, `daviplata`, `tarjeta_credito`, `ahorro`, `inversion` |
-| `saldo_centavos` | INTEGER | No | **Saldo inicial declarado** al crear la cuenta; puede ser 0 o negativo (tarjeta de crédito) |
+| `saldo_inicial_centavos` | INTEGER | No | **Saldo inicial declarado** al crear la cuenta; puede ser 0 o negativo (tarjeta de crédito) |
 | `moneda` | TEXT | No | ISO 4217; por defecto `'COP'` |
 | `activa` | INTEGER | No | 1 por defecto; una cuenta inactiva no aparece al registrar |
 | `nota` | TEXT | Sí | Texto libre hasta 500 caracteres |
 | `creado_en`, `actualizado_en` | INTEGER | No | Epoch ms |
 | `eliminado_en` | INTEGER | Sí | Borrado lógico |
 
-Nota: `saldo_centavos` **no** es el saldo que se muestra en el dashboard; ese se calcula (ver §6.1). Guardar el saldo inicial permite corregir la historia sin reescribir transacciones.
+Nota: `saldo_inicial_centavos` **no** es el saldo que se muestra en el dashboard; ese se calcula (ver §6.1). Guardar el saldo inicial permite corregir la historia sin reescribir transacciones.
 
 ### 3.2 `categoria`
 
@@ -101,7 +101,7 @@ Nota: `saldo_centavos` **no** es el saldo que se muestra en el dashboard; ese se
 | `naturaleza` | TEXT | No | `ingreso`, `gasto`, `ambos` |
 | `icono` | TEXT | Sí | Nombre del icono del catálogo de la app (p. ej. `restaurant`) |
 | `color` | TEXT | Sí | `'#RRGGBB'` |
-| `predefinida` | INTEGER | No | 1 = viene con la app y no se puede borrar, solo archivar |
+| `predefinida` | INTEGER | No | 1 = viene con la app (informativo); se puede editar, archivar o borrar si no tiene movimientos |
 | `orden` | INTEGER | No | Para ordenar en pantalla; 0 por defecto |
 | `archivada` | INTEGER | No | 0 por defecto; archivar es la alternativa a borrar |
 | `creado_en`, `actualizado_en`, `eliminado_en` | INTEGER | — | Auditoría |
@@ -114,6 +114,7 @@ Nota: `saldo_centavos` **no** es el saldo que se muestra en el dashboard; ese se
 | `categoria_id` | INTEGER | No | FK → `categoria.id`; `ON DELETE RESTRICT` |
 | `nombre` | TEXT | No | Único dentro de su categoría entre vigentes |
 | `predefinida` | INTEGER | No | 1 = de fábrica |
+| `archivada` | INTEGER | No | 0 por defecto; archivar es la alternativa a borrar |
 | `creado_en`, `actualizado_en`, `eliminado_en` | INTEGER | — | Auditoría |
 
 ### 3.4 `etiqueta`
@@ -132,16 +133,20 @@ Nota: `saldo_centavos` **no** es el saldo que se muestra en el dashboard; ese se
 | `id` | INTEGER | No | PK |
 | `tipo` | TEXT | No | `ingreso`, `gasto`, `transferencia` |
 | `monto_centavos` | INTEGER | No | **> 0**, en la moneda de la cuenta origen |
+| `monto_destino_centavos` | INTEGER | Sí | Obligatorio solo si `tipo = 'transferencia'`; > 0; en `moneda_destino` |
 | `moneda` | TEXT | No | Por defecto la moneda de `cuenta_id` |
+| `moneda_destino` | TEXT | Sí | Obligatoria solo en transferencia; ISO 4217 |
 | `cuenta_id` | INTEGER | No | FK → `cuenta.id` |
 | `cuenta_destino_id` | INTEGER | Sí | Obligatoria **solo** si `tipo = 'transferencia'`; debe ser distinta de `cuenta_id` |
 | `categoria_id` | INTEGER | Sí | Obligatoria si `tipo` es ingreso/gasto; debe ser `NULL` en transferencia |
 | `subcategoria_id` | INTEGER | Sí | FK → `subcategoria.id`; si existe, debe pertenecer a `categoria_id` |
 | `fecha` | TEXT | No | `'YYYY-MM-DD'`, el día que el usuario declara |
-| `fecha_hora` | INTEGER | No | Epoch ms del registro (para ordenar y auditar) |
+| `fecha_hora` | INTEGER | No | Epoch ms de la fecha y hora declaradas por el usuario (ordena el listado); la creación técnica está en `creado_en` |
 | `nota` | TEXT | Sí | Hasta 1.000 caracteres |
 | `recibo_id` | INTEGER | Sí | FK → `recibo.id`, único; enlace espejo del recibo |
-| `tasa_cambio` | REAL | Sí | Obligatoria si `moneda` ≠ moneda de la cuenta o si la transferencia cambia de moneda; > 0 |
+| `tasa_cambio` | REAL | Sí | Tasa efectiva usada; obligatoria solo si las monedas difieren; = `monto_destino_centavos` / `monto_centavos`; > 0 |
+| `estado` | TEXT | No | `confirmada` (por defecto) o `pendiente` (reservado para el bot, Fase 2) |
+| `origen` | TEXT | No | `manual` (por defecto), `bot`, `importado` |
 | `creado_en`, `actualizado_en`, `eliminado_en` | INTEGER | — | Auditoría y borrado lógico |
 
 ### 3.6 `transaccion_etiqueta` (tabla puente)
@@ -279,6 +284,8 @@ PK compuesta: (`transaccion_id`, `etiqueta_id`). Sin auditoría: si se quita una
 
 Restricción única: (`moneda_origen`, `moneda_destino`, `fecha`). No se borra historia: si la tasa se corrige, se actualiza `valor` y se conserva `creado_en`.
 
+Se crea en la Fase 1 con `fuente = 'manual'`; en la Fase 4 se añaden las fuentes automáticas (`trm`, `api_abierta`).
+
 ### 3.15 `configuracion` (auxiliar, clave/valor)
 
 | Campo | Tipo | Nulo | Regla |
@@ -291,7 +298,7 @@ Claves previstas:
 
 | Clave | Valores posibles | Para qué |
 |---|---|---|
-| `moneda_base` | `COP` | Moneda de los reportes |
+| `moneda_base` | código ISO 4217 del catálogo (COP por defecto) | Moneda de los reportes |
 | `zona_horaria` | `America/Bogota` | Horarios de reportes y recordatorios |
 | `tema` | `claro`, `oscuro`, `sistema` | Apariencia |
 | `bloqueo_biometria` | `0`, `1` | Usar huella si el teléfono la tiene |
@@ -346,10 +353,10 @@ La app guarda el **archivo**, no base64: la base no debe inflarse con megabytes 
 ## 4. Reglas de integridad
 
 1. **Montos positivos:** `monto_centavos > 0` en `transaccion`, `presupuesto`, `meta_movimiento`, `deuda_persona`, `credito`, `recurrente`. Un gasto no se guarda en negativo: el signo lo da `tipo`.
-2. **Transferencia:** `cuenta_destino_id` obligatoria, distinta de `cuenta_id`, y `categoria_id = NULL`. Si las monedas difieren, `tasa_cambio` es obligatoria y > 0.
-3. **Ingreso/gasto:** `cuenta_destino_id = NULL`, `categoria_id` obligatoria y compatible con `tipo` (categoría de naturaleza `gasto` o `ambos` para gastos; `ingreso` o `ambos` para ingresos).
+2. **Transferencia:** exige `cuenta_destino_id` (distinta de `cuenta_id`), `monto_destino_centavos`, `moneda_destino` y `categoria_id = NULL`. Si las monedas son iguales, el monto destino es igual al monto origen; si difieren, ambos montos son > 0 y `tasa_cambio` es obligatoria y > 0.
+3. **Ingreso/gasto:** `cuenta_destino_id = NULL`, `monto_destino_centavos = NULL`, `moneda_destino = NULL`, `categoria_id` obligatoria y compatible con `tipo` (categoría de naturaleza `gasto` o `ambos` para gastos; `ingreso` o `ambos` para ingresos).
 4. **Subcategoría coherente:** `subcategoria_id` debe pertenecer a `categoria_id`. Se valida en la app **y** con disparador si Drift lo permite.
-5. **No borrar con historia:** una categoría, subcategoría, etiqueta o cuenta con transacciones **no se elimina**: la categoría se `archivada = 1`, la cuenta `activa = 0`. Borrar siempre es lógico (`eliminado_en`).
+5. **No borrar con historia:** una categoría, subcategoría, etiqueta o cuenta con transacciones **no se elimina**: la categoría o subcategoría se `archivada = 1`, la cuenta `activa = 0`. Las predefinidas se pueden borrar si no tienen movimientos; con movimientos se archivan. Borrar siempre es lógico (`eliminado_en`).
 6. **Un recibo, una transacción:** `recibo.transaccion_id` y `transaccion.recibo_id` son espejo. Se escriben en la misma transacción de base de datos; la fuente de verdad es `recibo.transaccion_id`, con índice único que impide dos recibos para el mismo movimiento.
 7. **Etiquetas únicas:** no se repite nombre (sin distinguir mayúsculas) ni el par (`transaccion_id`, `etiqueta_id`).
 8. **Presupuesto coherente:** `fecha_fin ≥ fecha_inicio`; `meta_id` solo con `regla_sobrante = 'mover_a_meta'`; no se solapan dos presupuestos activos de la misma categoría y periodo.
@@ -359,6 +366,8 @@ La app guarda el **archivo**, no base64: la base no debe inflarse con megabytes 
 12. **Tasa de cambio:** `valor > 0`, monedas distintas y una sola fila por (`origen`, `destino`, `fecha`).
 13. **Fechas válidas:** el texto cumple `'YYYY-MM-DD'` (validación por longitud y formato) y `fecha_vencimiento ≥ fecha` en deudas.
 14. **Llaves foráneas activas:** `PRAGMA foreign_keys = ON` en cada apertura de la base. Sin eso, SQLite ignora las FK y la integridad se pierde en silencio.
+15. **Estado y origen:** `estado` por defecto `confirmada`; solo el bot (Fase 2) crea `pendiente`. `origen` por defecto `manual`.
+16. **Nombres reutilizables:** los índices únicos de nombres son parciales (`WHERE eliminado_en IS NULL`), para poder reutilizar un nombre después de un borrado lógico.
 
 ---
 
@@ -370,9 +379,12 @@ La app guarda el **archivo**, no base64: la base no debe inflarse con megabytes 
 | `transaccion` | (`cuenta_id`, `fecha`) | Saldo y extracto de una cuenta |
 | `transaccion` | (`categoria_id`, `fecha`) | Presupuestos y gráficas por categoría |
 | `transaccion` | (`fecha_hora`) | Orden cronológico fino |
-| `transaccion` | (`recibo_id`) único parcial | Un recibo no se repite |
+| `transaccion` | (`recibo_id`) único parcial `WHERE recibo_id IS NOT NULL` | Un recibo no se repite |
 | `transaccion_etiqueta` | (`etiqueta_id`) | Filtrar por etiqueta |
 | `subcategoria` | (`categoria_id`) | Desplegables |
+| `subcategoria` | (`categoria_id`, `nombre`) único parcial `WHERE eliminado_en IS NULL` | Un nombre solo una vez por categoría entre vigentes |
+| `categoria` | (`nombre`, `naturaleza`) único parcial `WHERE eliminado_en IS NULL` | "Otros" puede repetirse entre ingreso y gasto |
+| `etiqueta` | (`nombre` COLLATE NOCASE) único parcial `WHERE eliminado_en IS NULL` | Nombres de etiqueta únicos entre vigentes |
 | `presupuesto` | (`activo`, `periodo`, `fecha_inicio`) | Presupuestos vigentes del tablero |
 | `recurrente` | (`activo`, `proxima_fecha`) | Qué toca notificar hoy |
 | `meta_movimiento` | (`meta_id`, `fecha`) | Saldo y avance de la meta |
@@ -381,6 +393,7 @@ La app guarda el **archivo**, no base64: la base no debe inflarse con megabytes 
 | `recibo` | (`estado`) | Bandeja de recibos pendientes |
 | `tasa_cambio` | (`moneda_origen`, `moneda_destino`, `fecha`) único | Consulta de la tasa del día |
 | `cuenta` | (`activa`) | Cuentas disponibles al registrar |
+| `cuenta` | (`nombre`) único parcial `WHERE eliminado_en IS NULL` | Nombres únicos entre cuentas vigentes |
 | `captura_entrante` | (`id_mensaje`) único | Idempotencia del bot |
 | `captura_entrante` | (`estado`, `recibido_en`) | Bandeja de pendientes |
 | `mensaje_salida` | (`estado`, `creado_en`) | Qué falta entregar y en qué orden |
@@ -396,11 +409,11 @@ Ninguno se guarda como columna (salvo donde se indica): todos se calculan al vue
 ### 6.1 Saldo de una cuenta
 
 ```
-saldo = cuenta.saldo_centavos
+saldo = cuenta.saldo_inicial_centavos
       + suma(ingresos de la cuenta)
       - suma(gastos de la cuenta)
-      + suma(transferencias recibidas en la cuenta)   -> monto * tasa (si cambia de moneda)
-      - suma(transferencias enviadas desde la cuenta)
+      + suma(monto_destino_centavos de transferencias recibidas)
+      - suma(monto_centavos de transferencias enviadas)
 ```
 
 Ejemplo: cuenta Efectivo con saldo inicial $200.000; ingreso $50.000, gasto $18.500, transferencia enviada $30.000 a Nequi:
@@ -461,10 +474,10 @@ La tasa se toma de `tasa_cambio` por (`origen`, `destino`, `fecha`) y, si no exi
 | Fase | Entidades que se crean | Qué se puede hacer al terminar |
 |---|---|---|
 | 0 | Ninguna (solo este documento) | Nada financiero |
-| 1 | `cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta`, `configuracion` (parcial) | Registrar gastos/ingresos/transferencias a mano y ver saldos |
-| 2 | `recibo`, `captura_entrante`, `mensaje_salida` | Capturar por OCR, voz, texto y WhatsApp con revisión |
+| 1 | `cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta`, `tasa_cambio`, `configuracion` (parcial) y `recibo` (solo estructura) | Registrar gastos/ingresos/transferencias a mano y ver saldos |
+| 2 | `captura_entrante`, `mensaje_salida` (usa `recibo`) | Capturar por OCR, voz, texto y WhatsApp con revisión |
 | 3 | `presupuesto`, `deuda_persona`, `credito`, `meta`, `meta_movimiento`, `recurrente` | Planear y hacer seguimiento |
-| 4 | `tasa_cambio`, `configuracion` (respaldo completo) | Reportes, PDF, multimoneda real y respaldo en Drive |
+| 4 | Ninguna nueva: amplía `tasa_cambio` (fuentes automáticas) y `configuracion` (respaldo completo) | Reportes, PDF, multimoneda real y respaldo en Drive |
 
 Detalle de entregables y criterios en [PHASES.md](PHASES.md).
 
@@ -476,28 +489,36 @@ Este bloque **no se ejecuta todavía**; muestra cómo se traducen las convencion
 
 ```sql
 CREATE TABLE transaccion (
-  id                INTEGER PRIMARY KEY AUTOINCREMENT,
-  tipo              TEXT    NOT NULL CHECK (tipo IN ('ingreso','gasto','transferencia')),
-  monto_centavos    INTEGER NOT NULL CHECK (monto_centavos > 0),
-  moneda            TEXT    NOT NULL CHECK (length(moneda) = 3),
-  cuenta_id         INTEGER NOT NULL REFERENCES cuenta(id),
-  cuenta_destino_id INTEGER REFERENCES cuenta(id),
-  categoria_id      INTEGER REFERENCES categoria(id),
-  subcategoria_id   INTEGER REFERENCES subcategoria(id),
-  fecha             TEXT    NOT NULL,
-  fecha_hora        INTEGER NOT NULL,
-  nota              TEXT,
-  recibo_id         INTEGER UNIQUE REFERENCES recibo(id),
-  tasa_cambio       REAL    CHECK (tasa_cambio IS NULL OR tasa_cambio > 0),
-  creado_en         INTEGER NOT NULL,
-  actualizado_en    INTEGER NOT NULL,
-  eliminado_en      INTEGER,
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo                    TEXT    NOT NULL CHECK (tipo IN ('ingreso','gasto','transferencia')),
+  monto_centavos          INTEGER NOT NULL CHECK (monto_centavos > 0),
+  moneda                  TEXT    NOT NULL CHECK (length(moneda) = 3),
+  monto_destino_centavos  INTEGER CHECK (monto_destino_centavos IS NULL OR monto_destino_centavos > 0),
+  moneda_destino          TEXT    CHECK (moneda_destino IS NULL OR length(moneda_destino) = 3),
+  cuenta_id               INTEGER NOT NULL REFERENCES cuenta(id),
+  cuenta_destino_id       INTEGER REFERENCES cuenta(id),
+  categoria_id            INTEGER REFERENCES categoria(id),
+  subcategoria_id         INTEGER REFERENCES subcategoria(id),
+  fecha                   TEXT    NOT NULL,
+  fecha_hora              INTEGER NOT NULL,
+  nota                    TEXT,
+  recibo_id               INTEGER UNIQUE REFERENCES recibo(id),
+  tasa_cambio             REAL    CHECK (tasa_cambio IS NULL OR tasa_cambio > 0),
+  estado                  TEXT    NOT NULL DEFAULT 'confirmada' CHECK (estado IN ('confirmada','pendiente')),
+  origen                  TEXT    NOT NULL DEFAULT 'manual' CHECK (origen IN ('manual','bot','importado')),
+  creado_en               INTEGER NOT NULL,
+  actualizado_en          INTEGER NOT NULL,
+  eliminado_en            INTEGER,
   CHECK (
     (tipo = 'transferencia' AND cuenta_destino_id IS NOT NULL
-      AND cuenta_destino_id <> cuenta_id AND categoria_id IS NULL)
+      AND cuenta_destino_id <> cuenta_id AND categoria_id IS NULL
+      AND monto_destino_centavos IS NOT NULL AND moneda_destino IS NOT NULL
+      AND ((moneda = moneda_destino AND monto_destino_centavos = monto_centavos)
+        OR (moneda <> moneda_destino AND monto_destino_centavos > 0 AND tasa_cambio > 0)))
     OR
     (tipo IN ('ingreso','gasto') AND cuenta_destino_id IS NULL
-      AND categoria_id IS NOT NULL)
+      AND categoria_id IS NOT NULL AND monto_destino_centavos IS NULL
+      AND moneda_destino IS NULL)
   )
 );
 ```
@@ -520,3 +541,21 @@ CREATE TABLE transaccion (
 | Tasa de cambio decimal (`REAL`) | Pequeño redondeo al convertir | Aceptado |
 | Sin cifrado de la base | Legible para quien tenga el teléfono | Aceptado (ver [DECISIONS.md](DECISIONS.md)) |
 | Sin historial de saldos | El dashboard calcula, no guarda fotos diarias | Fase 4, si los reportes lo necesitan |
+
+---
+
+## 10. Cambios aprobados al iniciar la Fase 1
+
+Fecha de aprobación: **2026-11-23**. Son ajustes al modelo acordados antes de implementar el esquema; no crean entidades nuevas, salvo la estructura vacía de `recibo`.
+
+| Cambio | Qué cambió | Por qué |
+|---|---|---|
+| Transferencias con dos montos | `transaccion` guarda `monto_centavos` (origen) y `monto_destino_centavos` (destino), con `moneda_destino`; la tasa efectiva se calcula de ambos montos | El usuario pide registrar los dos montos cuando las monedas difieren (ADR-024) |
+| Estado y origen | `estado` (`confirmada`/`pendiente`) y `origen` (`manual`/`bot`/`importado`) existen desde la Fase 1 | Preparar la Fase 2 sin migrar el esquema después (ADR-025) |
+| Tasas de cambio en la Fase 1 | Se crea `tasa_cambio` con `fuente = 'manual'`; las fuentes automáticas llegan en la Fase 4 | El dashboard necesita consolidar montos en moneda base desde el MVP (ADR-026) |
+| Saldo inicial de la cuenta | El campo `saldo_centavos` pasa a llamarse `saldo_inicial_centavos` | Evitar confundirlo con el saldo mostrado, que se calcula |
+| Archivado de subcategorías | Se agrega `subcategoria.archivada` | Archivar es la alternativa a borrar cuando hay movimientos |
+| Categorías predefinidas editables | `predefinida = 1` es solo informativo; se pueden editar, archivar o borrar si no tienen movimientos | El dueño quiere control total sobre sus categorías (ADR-027) |
+| Catálogo de monedas en código | Lista fija de monedas principales (COP como base), sin tabla nueva | Evitar una tabla y una pantalla de administración que no se necesitan (ADR-028) |
+| Índices únicos parciales | Los nombres son únicos solo entre registros vigentes (`WHERE eliminado_en IS NULL`) | Poder reutilizar nombres después de un borrado lógico (ADR-029) |
+| Recibo como estructura | `recibo` se crea vacía en la Fase 1; la Fase 2 solo la usa | No migrar la tabla cuando llegue el OCR |

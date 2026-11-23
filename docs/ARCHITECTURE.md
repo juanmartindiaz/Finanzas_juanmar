@@ -1,6 +1,6 @@
 # Arquitectura de Gestor Finanzas
 
-**Fase actual: 0 (fundación).** Este documento describe el sistema **objetivo**: lo que se va a construir en las fases 1 a 5. En la Fase 0 solo existe el esqueleto de la app (una pantalla) y el esqueleto del bot (sin conexión a WhatsApp): **nada de lo descrito aquí está todavía implementado**.
+**Fase actual: 1 (MVP local, completada).** Este documento describe el sistema **objetivo**: lo que se construirá en las fases 2 a 5, además de lo que ya existe. En la Fase 1 ya están implementados la base SQLite, las cuentas, las categorías y etiquetas, las transacciones manuales y el dashboard; todavía **no** existen el bot de WhatsApp (solo esqueleto), el OCR, el audio ni los respaldos.
 
 **Para quién es este documento:** para el dueño del producto (que no programa) y para quien retome el código.
 
@@ -306,8 +306,8 @@ La app se organiza en capas para que el dinero y las reglas no dependan de la pa
 |---|---|---|
 | `app/lib/core/` | Transversal: `config/` (constantes y versión), `router/` (go_router), `theme/` (colores y tipografía), `utils/` (formato de moneda y fechas, validaciones) | No conoce la base de datos ni las pantallas |
 | `app/lib/domain/` | `entities/` (modelos puros) y `usecases/` (cálculos de saldo, presupuesto, metas, conversión) | Dart puro, sin Flutter ni SQLite; **aquí vive la verdad del dinero** |
-| `app/lib/data/` | `database/` (tablas Drift, DAOs, migraciones), `repositories/` (acceso a datos), `api/` (cliente del contrato del bot) | Único lugar que escribe en SQLite o llama al bot |
-| `app/lib/features/` | Una carpeta por función: `accounts`, `transactions`, `budgets`, `debts`, `goals`, `capture`, `reports`, `settings` y `welcome` (la de la Fase 0) | No contiene fórmulas financieras: las pide a `domain` |
+| `app/lib/data/` | `database/` (tablas Drift, migraciones, semilla), `repositories/` (acceso a datos), `api/` (cliente del contrato del bot, Fase 2) y `providers.dart` (Riverpod) | Único lugar que escribe en SQLite o llama al bot |
+| `app/lib/features/` | Una carpeta por función: `dashboard`, `accounts`, `transactions` y `settings` (implementadas en la Fase 1); `capture` (Fase 2); `budgets`, `debts`, `goals`, `reports` (fases 3–4) | No contiene fórmulas financieras: las pide a `domain` |
 | `app/lib/services/` | Integraciones con el teléfono o la red: `whatsapp_bridge`, `ocr`, `audio`, `notifications`, `backup`, `exchange_rates` | Aíslan lo que depende de hardware, permisos o internet |
 | `app/lib/main.dart` | Arranque: `MaterialApp.router`, tema, router | Lo más delgado posible |
 
@@ -332,7 +332,7 @@ C:\.Proyectos\App finanzas\
 │   ├── analysis_options.yaml     # reglas de estilo
 │   ├── android\                  # com.juanmartin.gestor_finanzas, SDK 36 / minSdk 24
 │   ├── assets\                   # iconos y, en la Fase 2, el modelo de voz
-│   ├── test\                     # pruebas de dinero y de reglas
+│   ├── test\                     # 37 pruebas: dinero, saldos, semilla, multimoneda, validación
 │   └── lib\
 │       ├── main.dart             # arranque: router, tema, providers globales
 │       ├── core\
@@ -342,21 +342,22 @@ C:\.Proyectos\App finanzas\
 │       │   └── utils\            # formato de moneda/fecha, validaciones
 │       ├── data\
 │       │   ├── api\              # cliente HTTP del contrato (Fase 2)
-│       │   ├── database\         # tablas Drift y migraciones (Fase 1)
-│       │   └── repositories\     # acceso a datos por entidad
+│       │   ├── database\         # tablas Drift, migraciones y semilla (Fase 1)
+│       │   ├── repositories\     # acceso a datos por entidad (Fase 1)
+│       │   └── providers.dart    # proveedores Riverpod (Fase 1)
 │       ├── domain\
 │       │   ├── entities\         # modelos puros (cuenta, transaccion, meta...)
 │       │   └── usecases\         # calculos: saldo, restante, avance, conversion
 │       ├── features\
-│       │   ├── welcome\          # pantalla de la Fase 0
+│       │   ├── dashboard\        # inicio: saldos, consolidado y últimos movimientos (Fase 1)
 │       │   ├── accounts\         # cuentas (Fase 1)
-│       │   ├── transactions\     # movimientos manuales (Fase 1)
+│       │   ├── transactions\     # movimientos manuales y filtros (Fase 1)
 │       │   ├── capture\          # bandeja de capturas y revision (Fase 2)
 │       │   ├── budgets\          # presupuestos (Fase 3)
 │       │   ├── debts\            # deudas y creditos (Fase 3)
 │       │   ├── goals\            # metas y aportes (Fase 3)
 │       │   ├── reports\          # graficas y PDF (Fase 4)
-│       │   └── settings\         # ajustes, bot, respaldo, token
+│       │   └── settings\         # ajustes, categorias, etiquetas, monedas (Fase 1)
 │       └── services\
 │           ├── whatsapp_bridge\  # servidores 8787/8788 y cliente del bot (Fase 2)
 │           ├── ocr\              # ML Kit y almacenamiento de recibos (Fase 2)
@@ -375,15 +376,16 @@ Las carpetas `build/`, `.dart_tool/` y `.idea/` las genera la herramienta y no s
 
 ---
 
-## 15. Qué no existe todavía (Fase 0)
+## 15. Qué no existe todavía (al terminar la Fase 1)
 
-- Ninguna tabla de base de datos: el esquema está **solo documentado** en [DATA_MODEL.md](DATA_MODEL.md).
-- Ningún servidor HTTP: ni el `:8787` de la app ni el `:8788` del bot.
-- Ninguna conexión a WhatsApp: Baileys **no está instalado**.
-- Nada de OCR, voz, notificaciones, PDF ni Google Drive: esos paquetes se instalan cuando llegue su fase.
-- Ninguna pantalla funcional más allá de "Gestor Finanzas — Fase 0".
+- **Bot de WhatsApp**: solo el esqueleto en `whatsapp_bot/`; Baileys **no está instalado**.
+- **Servidores HTTP**: ni el `:8787` de la app ni el `:8788` del bot.
+- **OCR, voz, notificaciones, PDF, Google Drive**: sus paquetes se instalan cuando llegue su fase.
+- **Presupuestos, deudas, créditos, metas y recurrentes**: solo están documentados en [DATA_MODEL.md](DATA_MODEL.md).
+- **PIN/biometría**: pospuesto a la Fase 5.
+- **Conversión automática de monedas**: en la Fase 1 las tasas son manuales; la actualización diaria llega en la Fase 4.
 
-Que la Fase 0 no tenga funciones financieras es intencional: primero se fija el entorno y el contrato, después se escribe el producto. Ver [PHASES.md](PHASES.md), Fase 0.
+Lo que sí existe: base SQLite con semilla, CRUD de cuentas/categorías/subcategorías/etiquetas, transacciones manuales (ingreso, gasto y transferencia con dos montos), filtros, dashboard con multimoneda y tasas manuales, y pruebas automatizadas. Ver [PHASES.md](PHASES.md), Fase 1.
 
 ---
 
