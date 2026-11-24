@@ -1,7 +1,9 @@
 # Gestor Finanzas
 
 App Android de finanzas personales, **local-first** (funciona sin internet), pensada para
-uso personal. Consta de **dos componentes**:
+uso personal. **Repositorio: <https://github.com/juanmartindiaz/Finanzas_juanmar>**
+
+Consta de **dos componentes**:
 
 1. **La app (Flutter, Android)**: toda la lógica, la base de datos local (SQLite con Drift),
    la interfaz, el OCR de recibos, la transcripción de audio offline, los reportes y los
