@@ -45,7 +45,7 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-028 | Catálogo de monedas | Lista fija en código, sin tabla | Aceptada |
 | ADR-029 | Borrado lógico | Índices únicos parciales sobre registros vigentes | Aceptada |
 | ADR-030 | API de capturas | Rutas v2 sin prefijo de versión; solo `/api/salud` sin token | Aceptada |
-| ADR-031 | Bandeja de capturas | Ninguna transacción sin confirmación humana | Aceptada |
+| ADR-031 | Bandeja de capturas | Reemplazada por ADR-043: auto-registro con revisión posterior | Reemplazada |
 | ADR-032 | Simulador de bot | `MOCK_BOT` hace HTTP real a `127.0.0.1:8787` | Aceptada |
 | ADR-033 | Adjuntos de captura | Carpeta privada `capturas/`, sin cifrado | Aceptada |
 | ADR-034 | Parser de texto | Heurístico, con confianza y campos faltantes | Aceptada |
@@ -57,6 +57,7 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-040 | Filtro de texto del bot | Solo se reenvían textos con un monto; la charla no ensucia la bandeja | Aceptada |
 | ADR-041 | Registro directo desde el bot | Con monto+tipo+cuenta se registra sin revisión; si falta algo, el bot pregunta | Aceptada |
 | ADR-042 | Servicio en primer plano | Notificación persistente + motor Flutter en caché; el servidor vive en segundo plano | Aceptada |
+| ADR-043 | Auto-registro universal | Todo texto/foto con monto se registra solo; bandeja = historial editable | Aceptada |
 
 ---
 
@@ -567,6 +568,18 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Contexto | El bot de WhatsApp no puede depender de que la app esté abierta; el dueño pidió registrar por chat sin abrir la app. Android mata la actividad al cerrar la tarea y, sin motor cacheado, el isolate de Dart y el servidor desaparecen aunque el servicio siga vivo. |
 | Consecuencias | Hay una notificación permanente mientras el servidor está activo (requisito de Android). Si el usuario **fuerza la detención** o reinicia el teléfono, debe abrir la app una vez; el servicio no arranca por sí solo tras un force-stop. El wake lock consume algo de batería, acotado al proceso. Reemplaza la limitación de ADR-036. |
 | Alternativas descartadas | Dejar la app abierta (fricción que el dueño rechazó); solo `START_STICKY` sin motor cacheado (el servidor muere con la tarea); mover la base y el servidor a Kotlin (duplicaría lógica y migraciones); ejecutar todo en Termux (la base vive en la app). |
+
+## ADR-043 — Auto-registro universal y bandeja como historial
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-043 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | Todo mensaje que llegue por el bot (texto o foto con OCR) y del que se obtenga **monto y tipo** se registra automáticamente. Si falta la cuenta se usa la cuenta por defecto o la primera activa; si falta la categoría se usa **Otros**; en ambos casos la captura se marca `incompleta` para revisión posterior. Si falta el monto, no se crea transacción: el bot pregunta y completa al responder. La bandeja pasa a ser **Actividad de WhatsApp**, un historial con Editar y Deshacer, no una cola de aprobación. |
+| Contexto | El dueño pidió no abrir la app para confirmar; el flujo anterior obligaba a revisar cada captura. Las fotos ya tienen OCR offline y el parser de recibos. |
+| Consecuencias | Reemplaza ADR-031. Un OCR/parser erróneo puede crear un movimiento incorrecto, mitigado con la marca `incompleta`, el resumen enviado por WhatsApp y la edición/borrado en Actividad de WhatsApp. Fotos y audios sin monto quedan como captura pendiente y el bot pregunta. |
+| Alternativas descartadas | Mantener confirmación (fricción rechazada); registrar con monto 0 cuando falla el OCR (datos falsos); inventar la cuenta (se usa la configurada o la primera activa y se marca incompleta). |
 
 ## Decisiones que no se cambian sin el dueño
 

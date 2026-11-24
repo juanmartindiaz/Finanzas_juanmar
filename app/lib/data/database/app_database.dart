@@ -39,7 +39,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.paraPruebas(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -52,6 +52,9 @@ class AppDatabase extends _$AppDatabase {
         // v1 -> v2: solo se agrega la tabla de capturas. No se altera ninguna
         // tabla existente ni se tocan datos (DATA_MODEL.md §8.1).
         await m.createTable(capturaEntrante);
+      } else if (from < 3) {
+        // v2 -> v3: bandera de auto-registro incompleto.
+        await m.addColumn(capturaEntrante, capturaEntrante.incompleta);
       }
       await _crearIndices();
     },

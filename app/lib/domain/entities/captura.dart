@@ -208,6 +208,7 @@ class CapturaEntrante {
     this.errorDetalle,
     this.transaccionId,
     this.procesadaAt,
+    this.incompleta = false,
   });
 
   final int id;
@@ -222,6 +223,8 @@ class CapturaEntrante {
   final int? transaccionId;
   final int createdAt;
   final int? procesadaAt;
+  /// `true` cuando se usaron valores por defecto (cuenta/categoría).
+  final bool incompleta;
 
   bool get estaAbierta =>
       estado == EstadoCaptura.pendiente || estado == EstadoCaptura.listo;

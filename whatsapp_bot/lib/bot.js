@@ -7,7 +7,9 @@ import {
   parsearMonto,
   parsearTipo,
   preguntaFaltante,
+  preguntaMontoFoto,
   respuestaExito,
+  respuestaFotoRegistrada,
   respuestaProcesado,
   respuestaRegistrada,
   tipoDeMensaje,
@@ -211,8 +213,23 @@ export function crearBot({
         );
         return;
       }
+      if (mensaje.tipo === 'foto' && body.transaccion_id) {
+        await responder(
+          evento,
+          respuestaFotoRegistrada(
+            body.comercio,
+            body.monto_centavos,
+            body.captura_id,
+          ),
+        );
+        return;
+      }
       if (mensaje.tipo === 'texto' && body.faltantes?.length) {
-        await iniciarConversacion(evento, body);
+        await iniciarConversacion(evento, body, { tipo: 'texto' });
+        return;
+      }
+      if (mensaje.tipo === 'foto' && body.faltantes?.length) {
+        await iniciarConversacion(evento, body, { tipo: 'foto' });
         return;
       }
       if (!reintento || mensaje.tipo === 'texto') {
@@ -257,13 +274,15 @@ export function crearBot({
     }
   }
 
-  async function iniciarConversacion(evento, body) {
+  async function iniciarConversacion(evento, body, { tipo = 'texto' } = {}) {
     if (!body?.captura_id) return;
     const estado = {
       capturaId: body.captura_id,
       faltantes: Array.isArray(body.faltantes) ? [...body.faltantes] : [],
       datos: {},
       resumen: body.resumen ?? '',
+      comercio: body.comercio ?? '',
+      tipo,
       remitente: evento.remitente,
     };
     conversaciones.guardar(normalizarNumero(evento.remitente), estado);
@@ -276,6 +295,10 @@ export function crearBot({
       return;
     }
     const faltante = estado.faltantes[0];
+    if (estado.tipo === 'foto' && faltante === 'monto') {
+      await responder(evento, preguntaMontoFoto(estado.comercio));
+      return;
+    }
     let cuentas = [];
     if (faltante === 'cuenta') {
       cuentas = (await leerCuentas()) ?? [];
@@ -331,13 +354,27 @@ export function crearBot({
     });
     if (resultado.ok && resultado.body?.transaccion_id) {
       conversaciones.limpiar(numero);
-      const resumen = estado.datos.cuenta_nombre
-        ? `${estado.resumen} · ${estado.datos.cuenta_nombre}`
-        : estado.resumen;
-      await responder(
-        evento,
-        respuestaRegistrada(resumen, resultado.body.captura_id ?? estado.capturaId),
-      );
+      if (estado.tipo === 'foto') {
+        await responder(
+          evento,
+          respuestaFotoRegistrada(
+            estado.comercio,
+            estado.datos.monto_centavos,
+            resultado.body.captura_id ?? estado.capturaId,
+          ),
+        );
+      } else {
+        const resumen = estado.datos.cuenta_nombre
+          ? `${estado.resumen} · ${estado.datos.cuenta_nombre}`
+          : estado.resumen;
+        await responder(
+          evento,
+          respuestaRegistrada(
+            resumen,
+            resultado.body.captura_id ?? estado.capturaId,
+          ),
+        );
+      }
       logger.info(
         `Registro completado ${estado.capturaId} → transacción ${resultado.body.transaccion_id}`,
         'registro',

@@ -8,7 +8,7 @@ abstract final class AppConfig {
   static const String appName = 'Gestor Finanzas';
 
   /// Versión de la aplicación (Fase 2).
-  static const String appVersion = '0.3.2';
+  static const String appVersion = '0.4.0';
 
   /// Fase de desarrollo actual.
   static const String fase = 'Fase 2';

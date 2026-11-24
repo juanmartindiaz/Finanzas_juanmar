@@ -137,7 +137,8 @@ La sesión queda guardada en `auth/`; en los siguientes arranques no pide QR.
 | Texto sin cuenta o sin monto/tipo (`gasté 18.500 en mercado`, `gasté`) | Pregunta por chat el primer dato que falta y, con la respuesta, registra sin abrir la app |
 | Texto con cuenta por defecto | El bot **pregunta la cuenta** siempre que el mensaje no la mencione (no la inventa) |
 | Texto sin monto ni palabra de transacción (`hola`) | **No crea nada**; responde con un ejemplo de cómo escribir |
-| Foto | La guarda como captura; responde “📷 Foto guardada…”. **Sin OCR:** el monto lo pones tú en la app |
+| Foto con monto legible | La app corre OCR y la registra automáticamente; responde “✅ Registrado automáticamente: $… en [Comercio]…” |
+| Foto sin monto legible | Responde “📸 Recibo guardado, pero no pude leer el monto. ¿Cuánto pagaste?” y registra cuando respondes el número |
 | Audio | Lo guarda como captura; responde “🎤 Audio guardado…”. **Sin transcripción todavía** |
 | Video, sticker, documento, ubicación, contacto | Responde “⚠️ Formato no soportado…” y **no** crea captura |
 | Grupo o estado | Se ignoran |
@@ -155,7 +156,7 @@ Reglas:
   el bot pregunta y guarda el estado de la conversación en `cola/conversacion.json`.
 - La categoría faltante se guarda como **Otros**; el movimiento se puede editar después en la
   bandeja de la app.
-- Fotos y audios quedan pendientes de revisión (todavía no hay OCR ni transcripción).
+- Fotos y audios: las fotos con monto se registran solas; las que no tienen monto quedan esperando tu respuesta. Los audios todavía no se transcriben.
 - Las capturas que hagas manualmente dentro de la app siguen requiriendo confirmación.
 
 ## 9. Arranque automático con Termux:Boot
@@ -234,8 +235,9 @@ Hazlo en este orden y anota el resultado de cada paso:
    Responde `Efectivo` y debe llegar “✅ Registrado: …”. El movimiento aparece en el
    dashboard sin que tengas que confirmarlo en la bandeja (allí puedes editarlo).
    También puedes probar `gasté 18.500 en mercado en efectivo`, que se registra directo.
-3. **Foto:** envía una foto de recibo. Esperado: “📷 Foto guardada…” y la imagen
-   en la bandeja (sin OCR; completas a mano).
+3. **Foto:** envía una foto de recibo con el total visible. Esperado: “✅ Registrado
+   automáticamente…” y el movimiento en el dashboard. Si el OCR no lee el monto, el bot
+   pregunta “¿Cuánto pagaste?”; responde solo el número y se registra.
 4. **Audio:** envía una nota de voz. Esperado: “🎤 Audio guardado…” y el audio
    en la bandeja (sin transcripción todavía).
 5. **App cerrada:** fuerza la detención de la app (Ajustes de Android →
@@ -263,7 +265,7 @@ npm install
 npm test
 ```
 
-- 30 pruebas con **transporte falso** (sin WhatsApp) y un servidor HTTP mock:
+- 31 pruebas con **transporte falso** (sin WhatsApp) y un servidor HTTP mock:
   texto/foto/audio, códigos 401/409/413/5xx, conexión rechazada, cola
   persistente, reinicio simulado, número autorizado (incluido el caso “sin
   configurar”), formatos no soportados, charla, posición del monto, backoff,

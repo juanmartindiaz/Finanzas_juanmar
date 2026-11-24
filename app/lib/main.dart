@@ -14,6 +14,7 @@ import 'data/repositories/configuracion_repository.dart';
 import 'data/repositories/cuentas_repository.dart';
 import 'data/repositories/etiquetas_repository.dart';
 import 'data/repositories/transacciones_repository.dart';
+import 'services/ocr/servicio_ocr.dart';
 import 'services/whatsapp_bridge/almacen_adjuntos.dart';
 import 'services/whatsapp_bridge/servidor_capturas.dart';
 
@@ -39,6 +40,7 @@ Future<void> main() async {
       etiquetas: EtiquetasRepository(db),
       cuentas: CuentasRepository(db),
       almacen: almacen,
+      ocr: ServicioOcrMlKit(),
     );
     // Si el puerto está ocupado, la app sigue funcionando sin servidor
     // (Ajustes muestra el error).

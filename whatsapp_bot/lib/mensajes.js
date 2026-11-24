@@ -59,6 +59,24 @@ export function respuestaRegistrada(resumen, capturaId) {
   return `✅ Registrado: ${detalle} (#${idCorto(capturaId)}). Puedes editarlo en la bandeja.`;
 }
 
+export function respuestaFotoRegistrada(comercio, montoCentavos, capturaId) {
+  const lugar = String(comercio ?? '').trim();
+  const monto = formatearPesosBot(montoCentavos);
+  const donde = lugar ? ` en ${lugar}` : '';
+  return `✅ Registrado automáticamente: ${monto}${donde}. Si algo falla, edítalo en la bandeja de la app. (#${idCorto(capturaId)})`;
+}
+
+export function preguntaMontoFoto(comercio) {
+  const lugar = String(comercio ?? '').trim();
+  return `📸 Recibo guardado${lugar ? ` (${lugar})` : ''}, pero no pude leer el monto. ¿Cuánto pagaste? (Responde solo con el número)`;
+}
+
+export function formatearPesosBot(centavos) {
+  const valor = Number(centavos ?? 0) / 100;
+  if (!Number.isFinite(valor)) return '$ 0';
+  return `$ ${Math.round(valor).toLocaleString('es-CO')}`;
+}
+
 /** Pregunta por el primer dato que falta. */
 export function preguntaFaltante(faltante, cuentas = []) {
   if (faltante === 'cuenta') {

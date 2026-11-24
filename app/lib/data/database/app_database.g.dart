@@ -5091,6 +5091,21 @@ class $CapturaEntranteTable extends CapturaEntrante
       'REFERENCES transacciones (id)',
     ),
   );
+  static const VerificationMeta _incompletaMeta = const VerificationMeta(
+    'incompleta',
+  );
+  @override
+  late final GeneratedColumn<bool> incompleta = GeneratedColumn<bool>(
+    'incompleta',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("incompleta" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -5125,6 +5140,7 @@ class $CapturaEntranteTable extends CapturaEntrante
     propuestaJson,
     errorDetalle,
     transaccionId,
+    incompleta,
     createdAt,
     procesadaAt,
   ];
@@ -5216,6 +5232,12 @@ class $CapturaEntranteTable extends CapturaEntrante
         ),
       );
     }
+    if (data.containsKey('incompleta')) {
+      context.handle(
+        _incompletaMeta,
+        incompleta.isAcceptableOrUnknown(data['incompleta']!, _incompletaMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -5282,6 +5304,10 @@ class $CapturaEntranteTable extends CapturaEntrante
         DriftSqlType.int,
         data['${effectivePrefix}transaccion_id'],
       ),
+      incompleta: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}incompleta'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
@@ -5310,6 +5336,9 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
   final String? propuestaJson;
   final String? errorDetalle;
   final int? transaccionId;
+
+  /// `true` si se auto-registró usando valores por defecto (cuenta/categoría).
+  final bool incompleta;
   final int createdAt;
   final int? procesadaAt;
   const CapturaRow({
@@ -5323,6 +5352,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
     this.propuestaJson,
     this.errorDetalle,
     this.transaccionId,
+    required this.incompleta,
     required this.createdAt,
     this.procesadaAt,
   });
@@ -5351,6 +5381,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
     if (!nullToAbsent || transaccionId != null) {
       map['transaccion_id'] = Variable<int>(transaccionId);
     }
+    map['incompleta'] = Variable<bool>(incompleta);
     map['created_at'] = Variable<int>(createdAt);
     if (!nullToAbsent || procesadaAt != null) {
       map['procesada_at'] = Variable<int>(procesadaAt);
@@ -5382,6 +5413,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
       transaccionId: transaccionId == null && nullToAbsent
           ? const Value.absent()
           : Value(transaccionId),
+      incompleta: Value(incompleta),
       createdAt: Value(createdAt),
       procesadaAt: procesadaAt == null && nullToAbsent
           ? const Value.absent()
@@ -5405,6 +5437,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
       propuestaJson: serializer.fromJson<String?>(json['propuestaJson']),
       errorDetalle: serializer.fromJson<String?>(json['errorDetalle']),
       transaccionId: serializer.fromJson<int?>(json['transaccionId']),
+      incompleta: serializer.fromJson<bool>(json['incompleta']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       procesadaAt: serializer.fromJson<int?>(json['procesadaAt']),
     );
@@ -5423,6 +5456,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
       'propuestaJson': serializer.toJson<String?>(propuestaJson),
       'errorDetalle': serializer.toJson<String?>(errorDetalle),
       'transaccionId': serializer.toJson<int?>(transaccionId),
+      'incompleta': serializer.toJson<bool>(incompleta),
       'createdAt': serializer.toJson<int>(createdAt),
       'procesadaAt': serializer.toJson<int?>(procesadaAt),
     };
@@ -5439,6 +5473,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
     Value<String?> propuestaJson = const Value.absent(),
     Value<String?> errorDetalle = const Value.absent(),
     Value<int?> transaccionId = const Value.absent(),
+    bool? incompleta,
     int? createdAt,
     Value<int?> procesadaAt = const Value.absent(),
   }) => CapturaRow(
@@ -5458,6 +5493,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
     transaccionId: transaccionId.present
         ? transaccionId.value
         : this.transaccionId,
+    incompleta: incompleta ?? this.incompleta,
     createdAt: createdAt ?? this.createdAt,
     procesadaAt: procesadaAt.present ? procesadaAt.value : this.procesadaAt,
   );
@@ -5485,6 +5521,9 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
       transaccionId: data.transaccionId.present
           ? data.transaccionId.value
           : this.transaccionId,
+      incompleta: data.incompleta.present
+          ? data.incompleta.value
+          : this.incompleta,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       procesadaAt: data.procesadaAt.present
           ? data.procesadaAt.value
@@ -5505,6 +5544,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
           ..write('propuestaJson: $propuestaJson, ')
           ..write('errorDetalle: $errorDetalle, ')
           ..write('transaccionId: $transaccionId, ')
+          ..write('incompleta: $incompleta, ')
           ..write('createdAt: $createdAt, ')
           ..write('procesadaAt: $procesadaAt')
           ..write(')'))
@@ -5523,6 +5563,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
     propuestaJson,
     errorDetalle,
     transaccionId,
+    incompleta,
     createdAt,
     procesadaAt,
   );
@@ -5540,6 +5581,7 @@ class CapturaRow extends DataClass implements Insertable<CapturaRow> {
           other.propuestaJson == this.propuestaJson &&
           other.errorDetalle == this.errorDetalle &&
           other.transaccionId == this.transaccionId &&
+          other.incompleta == this.incompleta &&
           other.createdAt == this.createdAt &&
           other.procesadaAt == this.procesadaAt);
 }
@@ -5555,6 +5597,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
   final Value<String?> propuestaJson;
   final Value<String?> errorDetalle;
   final Value<int?> transaccionId;
+  final Value<bool> incompleta;
   final Value<int> createdAt;
   final Value<int?> procesadaAt;
   const CapturaEntranteCompanion({
@@ -5568,6 +5611,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
     this.propuestaJson = const Value.absent(),
     this.errorDetalle = const Value.absent(),
     this.transaccionId = const Value.absent(),
+    this.incompleta = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.procesadaAt = const Value.absent(),
   });
@@ -5582,6 +5626,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
     this.propuestaJson = const Value.absent(),
     this.errorDetalle = const Value.absent(),
     this.transaccionId = const Value.absent(),
+    this.incompleta = const Value.absent(),
     required int createdAt,
     this.procesadaAt = const Value.absent(),
   }) : canal = Value(canal),
@@ -5598,6 +5643,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
     Expression<String>? propuestaJson,
     Expression<String>? errorDetalle,
     Expression<int>? transaccionId,
+    Expression<bool>? incompleta,
     Expression<int>? createdAt,
     Expression<int>? procesadaAt,
   }) {
@@ -5612,6 +5658,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
       if (propuestaJson != null) 'propuesta_json': propuestaJson,
       if (errorDetalle != null) 'error_detalle': errorDetalle,
       if (transaccionId != null) 'transaccion_id': transaccionId,
+      if (incompleta != null) 'incompleta': incompleta,
       if (createdAt != null) 'created_at': createdAt,
       if (procesadaAt != null) 'procesada_at': procesadaAt,
     });
@@ -5628,6 +5675,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
     Value<String?>? propuestaJson,
     Value<String?>? errorDetalle,
     Value<int?>? transaccionId,
+    Value<bool>? incompleta,
     Value<int>? createdAt,
     Value<int?>? procesadaAt,
   }) {
@@ -5642,6 +5690,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
       propuestaJson: propuestaJson ?? this.propuestaJson,
       errorDetalle: errorDetalle ?? this.errorDetalle,
       transaccionId: transaccionId ?? this.transaccionId,
+      incompleta: incompleta ?? this.incompleta,
       createdAt: createdAt ?? this.createdAt,
       procesadaAt: procesadaAt ?? this.procesadaAt,
     );
@@ -5680,6 +5729,9 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
     if (transaccionId.present) {
       map['transaccion_id'] = Variable<int>(transaccionId.value);
     }
+    if (incompleta.present) {
+      map['incompleta'] = Variable<bool>(incompleta.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
@@ -5702,6 +5754,7 @@ class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
           ..write('propuestaJson: $propuestaJson, ')
           ..write('errorDetalle: $errorDetalle, ')
           ..write('transaccionId: $transaccionId, ')
+          ..write('incompleta: $incompleta, ')
           ..write('createdAt: $createdAt, ')
           ..write('procesadaAt: $procesadaAt')
           ..write(')'))
@@ -9916,6 +9969,7 @@ typedef $$CapturaEntranteTableCreateCompanionBuilder =
       Value<String?> propuestaJson,
       Value<String?> errorDetalle,
       Value<int?> transaccionId,
+      Value<bool> incompleta,
       required int createdAt,
       Value<int?> procesadaAt,
     });
@@ -9931,6 +9985,7 @@ typedef $$CapturaEntranteTableUpdateCompanionBuilder =
       Value<String?> propuestaJson,
       Value<String?> errorDetalle,
       Value<int?> transaccionId,
+      Value<bool> incompleta,
       Value<int> createdAt,
       Value<int?> procesadaAt,
     });
@@ -10013,6 +10068,11 @@ class $$CapturaEntranteTableFilterComposer
 
   ColumnFilters<String> get errorDetalle => $composableBuilder(
     column: $table.errorDetalle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get incompleta => $composableBuilder(
+    column: $table.incompleta,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10104,6 +10164,11 @@ class $$CapturaEntranteTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get incompleta => $composableBuilder(
+    column: $table.incompleta,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -10184,6 +10249,11 @@ class $$CapturaEntranteTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get incompleta => $composableBuilder(
+    column: $table.incompleta,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -10256,6 +10326,7 @@ class $$CapturaEntranteTableTableManager
                 Value<String?> propuestaJson = const Value.absent(),
                 Value<String?> errorDetalle = const Value.absent(),
                 Value<int?> transaccionId = const Value.absent(),
+                Value<bool> incompleta = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int?> procesadaAt = const Value.absent(),
               }) => CapturaEntranteCompanion(
@@ -10269,6 +10340,7 @@ class $$CapturaEntranteTableTableManager
                 propuestaJson: propuestaJson,
                 errorDetalle: errorDetalle,
                 transaccionId: transaccionId,
+                incompleta: incompleta,
                 createdAt: createdAt,
                 procesadaAt: procesadaAt,
               ),
@@ -10284,6 +10356,7 @@ class $$CapturaEntranteTableTableManager
                 Value<String?> propuestaJson = const Value.absent(),
                 Value<String?> errorDetalle = const Value.absent(),
                 Value<int?> transaccionId = const Value.absent(),
+                Value<bool> incompleta = const Value.absent(),
                 required int createdAt,
                 Value<int?> procesadaAt = const Value.absent(),
               }) => CapturaEntranteCompanion.insert(
@@ -10297,6 +10370,7 @@ class $$CapturaEntranteTableTableManager
                 propuestaJson: propuestaJson,
                 errorDetalle: errorDetalle,
                 transaccionId: transaccionId,
+                incompleta: incompleta,
                 createdAt: createdAt,
                 procesadaAt: procesadaAt,
               ),

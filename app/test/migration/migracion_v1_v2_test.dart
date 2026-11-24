@@ -22,7 +22,7 @@ void main() {
     }
   });
 
-  test('v1 -> v2 conserva los datos y crea captura_entrante', () async {
+  test('v1 -> v3 conserva los datos y crea captura_entrante', () async {
     final String ruta = await RutasBaseDatos.ruta();
 
     // 1. Crear el esquema v2 y sembrar datos con Drift.
@@ -86,7 +86,7 @@ void main() {
             .customSelect('PRAGMA user_version')
             .getSingle())
         .read<int>('user_version');
-    expect(version, 2);
+    expect(version, 3);
     expect(
       (await db.select(db.cuentas).get()).length,
       cuentasAntes,

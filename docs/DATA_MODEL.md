@@ -313,7 +313,7 @@ Claves previstas:
 
 ### 3.16 `captura_entrante` (auxiliar del canal, Fase 2)
 
-No es una entidad financiera: es la bandeja donde el bot (o el simulador) deja lo que llega antes de que el usuario confirme. Se crea en la Fase 2 (schemaVersion 2) y nunca crea una transacción por sí sola (ADR-031).
+No es una entidad financiera: es el historial de lo que llega por el bot (o el simulador). Se crea en la Fase 2 (schemaVersion 2) y en la Fase 2.4 pasa a ser historial editable con auto-registro (ADR-043); el flujo normal ya no crea transacciones desde la bandeja.
 
 | Campo | Tipo | Nulo | Regla |
 |---|---|---|---|
@@ -536,8 +536,9 @@ CREATE TABLE transaccion (
 
 ### 8.1 Migraciones
 
-- Cada fase sube `schemaVersion`; la versión actual pasa a **2**.
+- Cada fase sube `schemaVersion`; la versión actual pasa a **3**.
 - **v1 → v2 (2026-11-24):** crea la tabla `captura_entrante` y sus índices. **No** se altera ninguna tabla existente ni se modifican datos; por eso la migración no puede perder información.
+- **v2 → v3 (2026-11-24):** agrega la columna `incompleta INTEGER NOT NULL DEFAULT 0` a `captura_entrante` para marcar auto-registros hechos con valores por defecto (ADR-043). No toca transacciones.
 - **Ruta exacta de la base:** una única función `rutaBaseDatos()` devuelve `getApplicationDocumentsDirectory()/gestor_finanzas.sqlite` y se usa también para abrir Drift con `DriftNativeOptions(databasePath: rutaBaseDatos)`. Así la apertura y el respaldo apuntan por construcción al mismo archivo (nada de rutas duplicadas a mano).
 - Antes de abrir la base, se copia `gestor_finanzas.sqlite` → `gestor_finanzas.sqlite.backup` en la misma carpeta. Si la apertura o la migración fallan, se restaura el `.backup` y se avisa en pantalla.
 - La prueba de migración crea una base v1 real en un archivo temporal, la abre con la v2 y verifica versión, datos y tabla nueva; usa la misma `rutaBaseDatos()`-derivada para comprobar que el backup apunta al archivo correcto.

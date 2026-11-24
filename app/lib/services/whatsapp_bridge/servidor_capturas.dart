@@ -22,7 +22,9 @@ import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/etiqueta.dart';
 import '../../domain/entities/subcategoria.dart';
 import '../../domain/entities/transaccion.dart';
+import '../../domain/parsers/parser_recibo.dart';
 import '../../domain/parsers/parser_texto.dart';
+import '../ocr/servicio_ocr.dart';
 import 'almacen_adjuntos.dart';
 import 'token_seguro.dart';
 
@@ -38,6 +40,7 @@ class ServidorCapturas {
     required this.etiquetas,
     required this.cuentas,
     required this.almacen,
+    this.ocr,
   });
 
   static const int limiteBytes = 8 * 1024 * 1024;
@@ -49,6 +52,7 @@ class ServidorCapturas {
   final EtiquetasRepository etiquetas;
   final CuentasRepository cuentas;
   final AlmacenAdjuntos almacen;
+  final ServicioOcr? ocr;
 
   HttpServer? _servidor;
   String? ultimoError;
@@ -212,7 +216,7 @@ class ServidorCapturas {
     ];
   }
 
-  Future<int?> _autoConfirmar(
+  Future<_ResultadoAuto?> _autoConfirmar(
     int capturaId,
     PropuestaCaptura propuesta, {
     int? cuentaId,
@@ -221,8 +225,7 @@ class ServidorCapturas {
   }) async {
     final TipoTransaccion? tipoFinal = tipo ?? propuesta.tipo;
     final int? montoFinal = montoCentavos ?? propuesta.montoCentavos;
-    final int? cuentaFinal = cuentaId ?? propuesta.cuentaId;
-    if (tipoFinal == null || montoFinal == null || cuentaFinal == null) {
+    if (tipoFinal == null || montoFinal == null) {
       return null;
     }
     final CapturaEntrante? captura = await capturas.obtener(capturaId);
@@ -230,25 +233,31 @@ class ServidorCapturas {
       return null;
     }
 
-    int? categoriaId = propuesta.categoriaId;
-    if (categoriaId == null) {
-      final List<Categoria> todas = await categorias.obtenerCategorias();
-      final NaturalezaCategoria naturaleza =
-          tipoFinal == TipoTransaccion.ingreso
-              ? NaturalezaCategoria.ingreso
-              : NaturalezaCategoria.gasto;
-      for (final Categoria categoria in todas) {
-        if (!categoria.archivada &&
-            categoria.naturaleza == naturaleza &&
-            categoria.nombre.toLowerCase() == 'otros') {
-          categoriaId = categoria.id;
-          break;
-        }
+    int? cuentaFinal = cuentaId ?? propuesta.cuentaId;
+    bool cuentaPorDefecto = false;
+    if (cuentaFinal == null) {
+      final int? preferida = await configuracion.obtenerCapturaCuentaId();
+      final List<Cuenta> activas = (await cuentas.obtenerTodas())
+          .where((Cuenta c) => c.activa)
+          .toList();
+      Cuenta? elegida;
+      for (final Cuenta cuenta in activas) {
+        if (cuenta.id == preferida) elegida = cuenta;
       }
+      elegida ??= activas.isEmpty ? null : activas.first;
+      cuentaFinal = elegida?.id;
+      cuentaPorDefecto = elegida != null && elegida.id != preferida;
+    }
+    if (cuentaFinal == null) {
+      return null;
     }
 
+    int? categoriaId = propuesta.categoriaId;
+    categoriaId ??= await _categoriaOtros(tipoFinal);
+
+    final bool incompleta = propuesta.faltantes.isNotEmpty || cuentaPorDefecto;
     final DateTime ahora = DateTime.now();
-    return capturas.confirmar(
+    final int transaccionId = await capturas.confirmar(
       capturaId: capturaId,
       tipo: tipoFinal,
       montoCentavos: montoFinal,
@@ -260,7 +269,27 @@ class ServidorCapturas {
       subcategoriaId: propuesta.subcategoriaId,
       etiquetaIds: propuesta.etiquetaIds,
       nota: captura.textoCrudo?.trim(),
+      incompleta: incompleta,
     );
+    return _ResultadoAuto(
+      transaccionId: transaccionId,
+      incompleta: incompleta,
+    );
+  }
+
+  Future<int?> _categoriaOtros(TipoTransaccion tipo) async {
+    final NaturalezaCategoria naturaleza =
+        tipo == TipoTransaccion.ingreso
+            ? NaturalezaCategoria.ingreso
+            : NaturalezaCategoria.gasto;
+    for (final Categoria categoria in await categorias.obtenerCategorias()) {
+      if (!categoria.archivada &&
+          categoria.naturaleza == naturaleza &&
+          categoria.nombre.toLowerCase() == 'otros') {
+        return categoria.id;
+      }
+    }
+    return null;
   }
 
   Future<shelf.Response> _confirmarCaptura(
@@ -288,23 +317,9 @@ class ServidorCapturas {
           moneda: 'COP',
           confianza: ConfianzaPropuesta.baja,
         );
-    final List<String> faltantes = _faltantesDe(
-      propuesta,
-      cuentaId: cuentaId,
-      montoCentavos: montoCentavos,
-      tipo: tipo,
-    );
-    if (faltantes.isNotEmpty) {
-      throw _ErrorHttp(
-        400,
-        'FALTAN_DATOS',
-        'Faltan datos para registrar el movimiento.',
-        extra: <String, Object?>{'faltantes': faltantes},
-      );
-    }
-    final int? transaccionId;
+    final _ResultadoAuto? resultado;
     try {
-      transaccionId = await _autoConfirmar(
+      resultado = await _autoConfirmar(
         capturaId,
         propuesta,
         cuentaId: cuentaId,
@@ -319,18 +334,27 @@ class ServidorCapturas {
         extra: <String, Object?>{'captura_id': capturaId},
       );
     }
-    if (transaccionId == null) {
-      throw const _ErrorHttp(
+    if (resultado == null) {
+      throw _ErrorHttp(
         400,
         'FALTAN_DATOS',
-        'No se pudo completar el movimiento.',
+        'Faltan datos para registrar el movimiento.',
+        extra: <String, Object?>{
+          'faltantes': _faltantesDe(
+            propuesta,
+            cuentaId: cuentaId,
+            montoCentavos: montoCentavos,
+            tipo: tipo,
+          ),
+        },
       );
     }
     return _json(200, <String, Object?>{
       'captura_id': capturaId,
       'estado': EstadoCaptura.confirmado.valorDb,
-      'transaccion_id': transaccionId,
+      'transaccion_id': resultado.transaccionId,
       'resumen': propuesta.resumen,
+      'incompleta': resultado.incompleta,
     });
   }
 
@@ -387,17 +411,19 @@ class ServidorCapturas {
       texto: texto,
       propuesta: propuesta,
     );
-    final List<String> faltantes = _faltantesDe(propuesta);
-    final int? transaccionId =
-        faltantes.isEmpty ? await _autoConfirmar(id, propuesta) : null;
+    final _ResultadoAuto? resultado =
+        (propuesta.tipo != null && propuesta.montoCentavos != null)
+            ? await _autoConfirmar(id, propuesta)
+            : null;
     return _json(201, <String, Object?>{
       'captura_id': id,
-      'estado': transaccionId == null
+      'estado': resultado == null
           ? EstadoCaptura.listo.valorDb
           : EstadoCaptura.confirmado.valorDb,
-      'transaccion_id': ?transaccionId,
+      'transaccion_id': ?resultado?.transaccionId,
       'resumen': propuesta.resumen,
-      'faltantes': faltantes,
+      'faltantes': resultado == null ? _faltantesDe(propuesta) : <String>[],
+      'incompleta': resultado?.incompleta ?? false,
       'cuenta_nombre': ?propuesta.cuentaNombre,
     });
   }
@@ -456,20 +482,83 @@ class ServidorCapturas {
     );
     final CanalCaptura canal =
         esAudio ? CanalCaptura.audio : CanalCaptura.foto;
-    final EstadoCaptura estado =
-        esAudio ? EstadoCaptura.pendiente : EstadoCaptura.listo;
+    if (esAudio) {
+      final int id = await capturas.crearDesdeCanal(
+        messageId: messageId,
+        canal: canal,
+        estado: EstadoCaptura.pendiente,
+        origen: _origenDe(request),
+        timestamp: timestamp,
+        adjuntoPath: ruta,
+      );
+      return _json(201, <String, Object?>{
+        'captura_id': id,
+        'estado': EstadoCaptura.pendiente.valorDb,
+      });
+    }
+
     final int id = await capturas.crearDesdeCanal(
       messageId: messageId,
-      canal: canal,
-      estado: estado,
+      canal: CanalCaptura.foto,
+      estado: EstadoCaptura.procesando,
       origen: _origenDe(request),
       timestamp: timestamp,
       adjuntoPath: ruta,
     );
-    return _json(201, <String, Object?>{
-      'captura_id': id,
-      'estado': estado.valorDb,
-    });
+    final String monedaBase = await configuracion.obtenerMonedaBase();
+    PropuestaCaptura propuesta;
+    try {
+      final String textoOcr;
+      if (ocr == null) {
+        textoOcr = '';
+      } else {
+        final File archivo = await almacen.resolver(ruta);
+        textoOcr = await ocr!.reconocerTexto(archivo.path);
+      }
+      final PropuestaRecibo recibo = parsearRecibo(
+        textoOcr,
+        fechaRecepcion: DateTime.fromMillisecondsSinceEpoch(timestamp),
+        categorias: await categorias.obtenerCategorias(),
+      );
+      propuesta = recibo.aPropuestaCaptura(moneda: monedaBase);
+      await capturas.actualizarPropuesta(id, propuesta);
+      final _ResultadoAuto? resultado =
+          (propuesta.tipo != null && propuesta.montoCentavos != null)
+              ? await _autoConfirmar(id, propuesta)
+              : null;
+      final List<String> faltantes =
+          resultado == null ? _faltantesDe(propuesta) : <String>[];
+      return _json(201, <String, Object?>{
+        'captura_id': id,
+        'estado': resultado == null
+            ? EstadoCaptura.listo.valorDb
+            : EstadoCaptura.confirmado.valorDb,
+        'transaccion_id': ?resultado?.transaccionId,
+        'monto_centavos': ?propuesta.montoCentavos,
+        'comercio': recibo.comercio,
+        'resumen': recibo.resumen,
+        'faltantes': faltantes,
+        'incompleta': resultado?.incompleta ?? false,
+      });
+    } on Object catch (error) {
+      developer.log('OCR falló para $messageId: $error');
+      propuesta = PropuestaCaptura(
+        tipo: TipoTransaccion.gasto,
+        moneda: monedaBase,
+        confianza: ConfianzaPropuesta.baja,
+        faltantes: const <String>['monto'],
+        resumen: 'Recibo sin monto legible',
+      );
+      await capturas.actualizarPropuesta(id, propuesta);
+      await capturas.marcarError(id, 'No se pudo leer el recibo: $error');
+      return _json(201, <String, Object?>{
+        'captura_id': id,
+        'estado': EstadoCaptura.error.valorDb,
+        'resumen': propuesta.resumen,
+        'faltantes': <String>['monto'],
+        'incompleta': true,
+      });
+    }
   }
 
   OrigenCaptura _origenDe(shelf.Request request) {
@@ -485,7 +574,8 @@ class ServidorCapturas {
         await categorias.obtenerSubcategorias();
     final List<Etiqueta> etiquetasActuales = await etiquetas.obtenerTodas();
     final List<Cuenta> cuentasActuales = await cuentas.obtenerTodas();
-    final int? cuentaPorDefecto = null;
+    final int? cuentaPorDefecto =
+        await configuracion.obtenerCapturaCuentaId();
     final String monedaBase = await configuracion.obtenerMonedaBase();
     return parsearTexto(
       texto,
@@ -657,6 +747,16 @@ class _ErrorHttp implements Exception {
   final String mensaje;
   final String? campo;
   final Map<String, Object?>? extra;
+}
+
+class _ResultadoAuto {
+  const _ResultadoAuto({
+    required this.transaccionId,
+    required this.incompleta,
+  });
+
+  final int transaccionId;
+  final bool incompleta;
 }
 
 class _Formulario {

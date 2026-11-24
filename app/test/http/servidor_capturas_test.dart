@@ -99,7 +99,7 @@ void main() {
     expect(r.statusCode, 201);
     final Map<String, Object?> json =
         jsonDecode(r.body) as Map<String, Object?>;
-    expect(json['estado'], 'listo');
+    expect(json['estado'], 'confirmado');
     final int id = json['captura_id']! as int;
     final captura =
         await CapturasRepository(db, TransaccionesRepository(db)).obtener(id);
@@ -142,7 +142,7 @@ void main() {
       },
       body: jsonEncode(<String, Object?>{
         'message_id': 'm-pend',
-        'texto': 'gasté 10.000 en mercado',
+        'texto': '10.000 en mercado',
         'canal': 'texto',
         'timestamp': 1795500000000,
       }),

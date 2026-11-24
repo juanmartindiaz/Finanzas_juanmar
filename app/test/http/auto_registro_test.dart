@@ -12,11 +12,19 @@ import 'package:gestor_finanzas/data/repositories/etiquetas_repository.dart';
 import 'package:gestor_finanzas/data/repositories/transacciones_repository.dart';
 import 'package:gestor_finanzas/domain/entities/captura.dart';
 import 'package:gestor_finanzas/domain/entities/transaccion.dart';
+import 'package:gestor_finanzas/services/ocr/servicio_ocr.dart';
 import 'package:gestor_finanzas/services/whatsapp_bridge/almacen_adjuntos.dart';
 import 'package:gestor_finanzas/services/whatsapp_bridge/servidor_capturas.dart';
 import 'package:http/http.dart' as http;
 
 import '../support/pruebas_db.dart';
+
+class FakeOcr implements ServicioOcr {
+  String texto = '';
+
+  @override
+  Future<String> reconocerTexto(String rutaAbsoluta) async => texto;
+}
 
 void main() {
   late Directory directorio;
@@ -24,6 +32,7 @@ void main() {
   late ServidorCapturas servidor;
   late String token;
   late String base;
+  late FakeOcr ocr;
 
   setUp(() async {
     directorio = await Directory.systemTemp.createTemp('gestor_auto_');
@@ -33,6 +42,7 @@ void main() {
     final ConfiguracionRepository configuracion = ConfiguracionRepository(db);
     await configuracion.guardarPuerto(0);
     token = await configuracion.obtenerOCrearToken();
+    ocr = FakeOcr();
     servidor = ServidorCapturas(
       configuracion: configuracion,
       capturas: CapturasRepository(db, TransaccionesRepository(db)),
@@ -40,6 +50,7 @@ void main() {
       etiquetas: EtiquetasRepository(db),
       cuentas: CuentasRepository(db),
       almacen: AlmacenAdjuntos(),
+      ocr: ocr,
     );
     await servidor.iniciar();
     base = 'http://127.0.0.1:${servidor.puerto}';
@@ -106,16 +117,16 @@ void main() {
     expect(transaccion!.origen, OrigenTransaccion.bot);
   });
 
-  test('texto sin cuenta queda pendiente y /confirmar la completa', () async {
+  test('texto incompleto se completa con /confirmar', () async {
     final http.Response inicial =
-        await enviarTexto('gasté 18.500 en mercado', 'auto-2');
+        await enviarTexto('18.500 en mercado', 'auto-2');
     expect(inicial.statusCode, 201);
     final Map<String, Object?> jsonInicial =
         jsonDecode(inicial.body) as Map<String, Object?>;
     expect(jsonInicial['estado'], 'listo');
     expect(
       (jsonInicial['faltantes']! as List<Object?>).cast<String>(),
-      contains('cuenta'),
+      contains('tipo'),
     );
     final int capturaId = jsonInicial['captura_id']! as int;
 
@@ -125,7 +136,7 @@ void main() {
         'content-type': 'application/json',
         'x-bot-token': token,
       },
-      body: jsonEncode(<String, Object?>{'cuenta_id': 1}),
+      body: jsonEncode(<String, Object?>{'tipo': 'gasto'}),
     );
     expect(confirmada.statusCode, 200);
     final Map<String, Object?> json =
@@ -142,7 +153,7 @@ void main() {
 
   test('confirmar sin datos devuelve 400 con faltantes', () async {
     final http.Response inicial =
-        await enviarTexto('gasté 18.500 en mercado', 'auto-3');
+        await enviarTexto('18.500 en mercado', 'auto-3');
     final int capturaId =
         (jsonDecode(inicial.body) as Map<String, Object?>)['captura_id']! as int;
     final http.Response r = await http.post(
@@ -156,6 +167,7 @@ void main() {
     expect(r.statusCode, 400);
     final Map<String, Object?> json =
         jsonDecode(r.body) as Map<String, Object?>;
-    expect(json['faltantes'], contains('cuenta'));
+    expect(json['faltantes'], contains('tipo'));
   });
 }
+

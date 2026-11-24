@@ -13,10 +13,10 @@ Consta de **dos componentes**:
    los pasará a la app por HTTP local, y enviará los mensajes que la app le pida (por ejemplo,
    los reportes diarios). Se conecta con Baileys, sin la API oficial de Meta.
 
-> **Estado actual: Fase 2 parte 2 completada** (bot real con Baileys + registro directo desde
-> WhatsApp). El bot interpreta el mensaje, registra automáticamente si tiene monto, tipo y
-> cuenta, y pregunta por chat lo que falte. La bandeja queda como historial editable. El OCR,
-> la transcripción y el foreground service vienen en los próximos prompts.
+> **Estado actual: Fase 2.4 completada** (OCR de recibos + auto-registro universal). El bot
+> registra solo texto y fotos cuando hay monto; si falta la cuenta usa la cuenta por defecto
+> (o la primera activa) y la marca incompleta. La bandeja es **Actividad de WhatsApp**, un
+> historial editable. La transcripción de audio (2.5) es lo que queda de la Fase 2.
 
 ---
 
@@ -52,8 +52,8 @@ App finanzas/                  ← raíz del repo
 
 | Pantalla | Ruta | Qué hace |
 |---|---|---|
-| Bandeja de capturas | `/bandeja` | Pendientes/listas arriba, historial abajo; captura manual de texto y badge de pendientes en el dashboard |
-| Revisión de captura | `/bandeja/:id` | Reutiliza el formulario de transacción: confirmar crea la transacción real; descartar no crea nada |
+| Actividad de WhatsApp | `/bandeja` | Historial de movimientos creados por el bot (texto y foto), con Editar y Deshacer |
+| Revisión de captura | `/bandeja/:id` | Detalle de una captura pendiente (por ejemplo, un recibo sin monto); el flujo normal ya no requiere confirmación |
 | Simulador de bot | `/ajustes/simulador` | Envía texto, imagen o audio al servidor local por HTTP real (como el bot) |
 | Canal bot | `/ajustes/canal-bot` | Token (ver/copiar/regenerar), puerto, MOCK_BOT y estado del servidor |
 |---|---|---|
@@ -150,10 +150,10 @@ Captura real de la Fase 1:
 ```powershell
 cd app
 flutter analyze     # "No issues found!"
-flutter test        # "All tests passed!" (73 pruebas de la app)
+flutter test        # "All tests passed!" (91 pruebas de la app)
 
 cd ../whatsapp_bot
-npm test            # 30 pruebas del bot con transporte falso
+npm test            # 31 pruebas del bot con transporte falso
 ```
 
 ### Probar los flujos principales (5 minutos)
@@ -246,7 +246,7 @@ formulario, ajustes, categorías y monedas.
 |---|---|---|
 | **0** | Fundación | ✅ completada |
 | **1** | MVP local | ✅ completada |
-| **2** | Captura: bandeja + canal HTTP + **bot de WhatsApp con Baileys**; OCR, audio y foreground service pendientes | ✅ partes 1 y 2 / ⏳ resto |
+| **2** | Captura: bandeja + canal HTTP + bot de WhatsApp + auto-registro + **OCR de recibos**; audio pendiente | ✅ 2.1–2.4 / ⏳ 2.5 |
 | **3** | Presupuestos, deudas con personas y créditos, metas, recurrentes con notificaciones | — |
 | **4** | Reportes con gráficas, PDF, reportes diarios por WhatsApp, conversión diaria de monedas, respaldo/restauración en Google Drive | — |
 | **5** | Endurecimiento, pruebas en teléfono real, APK final, guía del bot en Termux, PIN/biometría | — |
@@ -285,7 +285,7 @@ El detalle y los motivos están en [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## 12. Lo que **no** existe todavía (a propósito)
 
-- OCR de recibos y transcripción de audio (fases 2.4/2.5); por ahora solo se guardan.
+- OCR de recibos integrado (ML Kit, offline); la transcripción de audio (2.5) todavía no existe.
 - Servicio en primer plano: el servidor se apaga con la app (fase 2.6).
 - Cola de salida y reportes automáticos por WhatsApp (Fase 4).
 - Presupuestos, deudas, créditos, metas y recurrentes (Fase 3).

@@ -199,6 +199,8 @@ class CapturaEntrante extends Table {
   TextColumn get errorDetalle => text().nullable()();
   IntColumn get transaccionId =>
       integer().nullable().references(Transacciones, #id)();
+  /// `true` si se auto-registró usando valores por defecto (cuenta/categoría).
+  BoolColumn get incompleta => boolean().withDefault(const Constant(false))();
   IntColumn get createdAt => integer()();
   IntColumn get procesadaAt => integer().nullable()();
 }

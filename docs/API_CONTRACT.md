@@ -254,22 +254,36 @@ completar los datos faltantes se usa `POST /api/capturas/{id}/confirmar`.
 
 ### 8.3 `POST /api/capturas/foto` — con token, `multipart/form-data`
 
-Recibe una foto del recibo. En esta fase **no hay OCR**: el archivo se guarda y la captura
-queda pendiente de revisión manual.
+Recibe una foto del recibo y ejecuta **OCR offline con ML Kit**. Si el parser de recibos
+encuentra el monto, la transacción se registra automáticamente; si no, responde con
+`faltantes: ["monto"]` para que el bot pregunte.
 
 **Campos del formulario:**
 
 | Campo | Tipo | Obligatorio | Regla |
 |---|---|---|---|
 | `message_id` | texto | Sí | Idempotencia |
-| `timestamp` | entero | Sí | Epoch ms |
+| `timestamp` | entero | Sí | Epoch ms (fecha de recepción) |
 | `archivo` | archivo | Sí | JPEG/PNG/WebP, ≤ 8 MB |
 
-**Respuesta 201:**
+**Respuesta 201 con monto (auto-registro):**
 
 ```json
-{ "captura_id": 42, "estado": "listo" }
+{
+  "captura_id": 42,
+  "estado": "confirmado",
+  "transaccion_id": 90,
+  "monto_centavos": 4500000,
+  "comercio": "SUPERMERCADO EXITO",
+  "resumen": "SUPERMERCADO EXITO · $ 45.000",
+  "faltantes": [],
+  "incompleta": false
+}
 ```
+
+**Respuesta 201 sin monto:** `{ "captura_id": 43, "estado": "listo", "comercio": "…",
+"resumen": "…", "faltantes": ["monto"] }`. El bot pregunta el monto y luego usa
+`POST /api/capturas/{id}/confirmar` con `monto_centavos`.
 
 La captura queda `canal = 'foto'`, `origen = 'bot'`, `estado = 'listo'`, `adjunto_path` con la
 ruta relativa dentro de la carpeta privada `capturas/` y `propuesta_json` vacía (el OCR llega

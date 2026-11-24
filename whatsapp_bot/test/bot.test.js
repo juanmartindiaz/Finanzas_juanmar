@@ -42,8 +42,21 @@ describe('bot: flujo feliz y filtros', () => {
     await entorno.cerrar();
   });
 
-  test('foto se entrega por multipart y responde 📷', async () => {
-    const entornoFoto = await crearEntorno();
+  test('foto con monto se registra y responde automáticamente', async () => {
+    const entornoFoto = await crearEntorno({
+      respuesta: {
+        status: 201,
+        body: {
+          captura_id: 1234,
+          estado: 'confirmado',
+          transaccion_id: 77,
+          monto_centavos: 4500000,
+          comercio: 'Éxito',
+          resumen: 'Éxito · $ 45.000',
+          faltantes: [],
+        },
+      },
+    });
     await entornoFoto.transporte.emitir(
       eventoTexto({ tipo: 'foto', texto: null }),
     );
@@ -54,7 +67,57 @@ describe('bot: flujo feliz y filtros', () => {
     expect(cuerpo).toContain('name="message_id"');
     expect(cuerpo).toContain('name="archivo"');
     expect(cuerpo).toContain('recibo.jpg');
-    expect(entornoFoto.transporte.enviados[0].texto).toContain('📷 Foto guardada');
+    expect(entornoFoto.transporte.enviados[0].texto).toContain(
+      '✅ Registrado automáticamente',
+    );
+    await entornoFoto.cerrar();
+  });
+
+  test('foto sin monto pregunta y con la respuesta registra', async () => {
+    const entornoFoto = await crearEntorno({
+      respuesta: (req) => {
+        if (req.url === '/api/capturas/33/confirmar') {
+          return {
+            status: 200,
+            body: {
+              captura_id: 33,
+              estado: 'confirmado',
+              transaccion_id: 12,
+              resumen: 'Éxito · $ 45.000',
+            },
+          };
+        }
+        return {
+          status: 201,
+          body: {
+            captura_id: 33,
+            estado: 'listo',
+            comercio: 'Éxito',
+            resumen: 'Éxito · Recibo',
+            faltantes: ['monto'],
+          },
+        };
+      },
+    });
+    await entornoFoto.transporte.emitir(
+      eventoTexto({ id: 'foto-sin-monto', tipo: 'foto', texto: null }),
+    );
+    expect(entornoFoto.transporte.enviados.at(-1).texto).toContain(
+      '📸 Recibo guardado',
+    );
+
+    await entornoFoto.transporte.emitir(
+      eventoTexto({ id: 'foto-respuesta', texto: '45000' }),
+    );
+    expect(entornoFoto.transporte.enviados.at(-1).texto).toContain(
+      '✅ Registrado automáticamente',
+    );
+    const confirmar = entornoFoto.servidor.peticiones.find(
+      (p) => p.url === '/api/capturas/33/confirmar',
+    );
+    expect(JSON.parse(confirmar.cuerpo.toString())).toMatchObject({
+      monto_centavos: 4500000,
+    });
     await entornoFoto.cerrar();
   });
 

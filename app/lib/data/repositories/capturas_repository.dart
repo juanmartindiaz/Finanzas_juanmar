@@ -97,6 +97,7 @@ class CapturasRepository {
     String? texto,
     String? adjuntoPath,
     PropuestaCaptura? propuesta,
+    bool incompleta = false,
   }) {
     return _db.into(_db.capturaEntrante).insert(
           CapturaEntranteCompanion.insert(
@@ -109,6 +110,7 @@ class CapturasRepository {
             propuestaJson: Value<String?>(
               propuesta == null ? null : jsonEncode(propuesta.toJson()),
             ),
+            incompleta: Value<bool>(incompleta),
             createdAt: timestamp,
             procesadaAt: Value<int?>(
               estado == EstadoCaptura.pendiente ? null : ahoraMs(),
@@ -162,6 +164,7 @@ class CapturasRepository {
     String? nota,
     double? tasaCambio,
     List<int> etiquetaIds = const <int>[],
+    bool incompleta = false,
   }) async {
     final CapturaEntrante? captura = await obtener(capturaId);
     if (captura == null) {
@@ -198,6 +201,7 @@ class CapturasRepository {
         CapturaEntranteCompanion(
           estado: Value<String>(EstadoCaptura.confirmado.valorDb),
           transaccionId: Value<int>(id),
+          incompleta: Value<bool>(incompleta),
           procesadaAt: Value<int>(ahoraMs()),
         ),
       );
@@ -267,5 +271,6 @@ CapturaEntrante _aDominio(CapturaRow fila) {
     transaccionId: fila.transaccionId,
     createdAt: fila.createdAt,
     procesadaAt: fila.procesadaAt,
+    incompleta: fila.incompleta,
   );
 }
