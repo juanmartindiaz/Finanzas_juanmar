@@ -158,6 +158,16 @@ void main() {
     expect(p.confianza, ConfianzaPropuesta.media);
   });
 
+  test('reconoce la cuenta mencionada en el texto', () {
+    final p = parsearTexto(
+      'gasté 18.500 en mercado en efectivo',
+      construirContexto(cuentaPorDefecto: null),
+    );
+    expect(p.cuentaId, 1);
+    expect(p.cuentaNombre, 'Efectivo');
+    expect(p.faltantes, isNot(contains('cuenta')));
+  });
+
   test('texto ambiguo deja tipo nulo y confianza baja', () {
     final p = parsearTexto('recibí y gasté 1000', contexto);
     expect(p.tipo, isNull);

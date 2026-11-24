@@ -78,7 +78,7 @@ PropuestaCaptura parsearTexto(String texto, ContextoParser contexto) {
     }
   }
 
-  final Cuenta? cuenta = _buscarCuenta(contexto);
+  final Cuenta? cuenta = _buscarCuenta(contexto, normalizado);
   if (cuenta == null) {
     faltantes.add('cuenta');
   }
@@ -358,7 +358,26 @@ Categoria? _buscarOtros(TipoTransaccion? tipo, List<Categoria> categorias) {
   return null;
 }
 
-Cuenta? _buscarCuenta(ContextoParser contexto) {
+Cuenta? _buscarCuenta(ContextoParser contexto, String textoNormalizado) {
+  // Cuenta mencionada explícitamente en el texto (ej. "en efectivo").
+  Cuenta? porNombre;
+  int largoCoincidencia = 0;
+  for (final Cuenta cuenta in contexto.cuentas) {
+    if (!cuenta.activa) {
+      continue;
+    }
+    final String nombre = normalizarTexto(cuenta.nombre);
+    if (nombre.length >= 3 &&
+        textoNormalizado.contains(nombre) &&
+        nombre.length > largoCoincidencia) {
+      porNombre = cuenta;
+      largoCoincidencia = nombre.length;
+    }
+  }
+  if (porNombre != null) {
+    return porNombre;
+  }
+
   if (contexto.cuentaPorDefectoId == null) {
     return null;
   }

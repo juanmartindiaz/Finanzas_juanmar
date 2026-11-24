@@ -68,5 +68,27 @@ export function crearAppClient({
     });
   }
 
-  return { enviarTexto, enviarArchivo };
+  async function cuentas() {
+    return pedir('/api/cuentas', {
+      headers: { 'x-bot-token': token },
+    });
+  }
+
+  async function confirmarCaptura(capturaId, { cuentaId, montoCentavos, tipo }) {
+    const cuerpo = {
+      cuenta_id: cuentaId,
+      monto_centavos: montoCentavos,
+      tipo,
+    };
+    return pedir(`/api/capturas/${capturaId}/confirmar`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-bot-token': token,
+      },
+      body: JSON.stringify(cuerpo),
+    });
+  }
+
+  return { enviarTexto, enviarArchivo, cuentas, confirmarCaptura };
 }

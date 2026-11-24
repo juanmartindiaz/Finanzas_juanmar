@@ -198,8 +198,9 @@ Sirve para saber si el servidor está vivo. No revela datos.
 ### 8.2 `POST /api/capturas/texto` — con token
 
 Recibe un mensaje de texto (escrito por el usuario en WhatsApp y reenviado por el bot, o
-generado por el simulador interno). Crea la captura, corre el **parser en español** y deja la
-propuesta lista para revisión.
+generado por el simulador interno). Crea la captura, corre el **parser en español** y, si
+obtiene **tipo, monto y cuenta**, registra la transacción automáticamente (sin revisión). Si
+falta algún dato, devuelve `faltantes` para que el bot pregunte por chat.
 
 **Petición:**
 
@@ -219,20 +220,34 @@ propuesta lista para revisión.
 | `canal` | texto | Sí | `texto` o `audio` (texto transcrito en una fase posterior) |
 | `timestamp` | entero | Sí | Epoch ms; no puede ser futuro por más de 5 minutos |
 
-**Respuesta 201:**
+**Respuesta 201 (registro automático):**
 
 ```json
 {
   "captura_id": 41,
-  "estado": "listo"
+  "estado": "confirmado",
+  "transaccion_id": 88,
+  "resumen": "Gasto · $ 18.500 · Alimentación",
+  "faltantes": [],
+  "cuenta_nombre": "Efectivo"
 }
 ```
 
-La captura queda con `origen = 'bot'`, `canal = 'texto'`, `estado = 'listo'` y
-`propuesta_json` con tipo, monto, categoría/subcategoría propuestas, etiquetas, cuenta
-propuesta, confianza y campos faltantes. Si el parser no pudo entender algo, la captura queda
-igual en `listo` pero con `confianza` baja y `faltantes`; la app la resalta como "requiere
-revisión".
+**Respuesta 201 (faltan datos):**
+
+```json
+{
+  "captura_id": 42,
+  "estado": "listo",
+  "resumen": "Gasto · $ 20.000 · Otros",
+  "faltantes": ["cuenta"]
+}
+```
+
+La captura queda con `origen = 'bot'`, `canal = 'texto'` y `propuesta_json` con tipo, monto,
+categoría/subcategoría, etiquetas y cuenta. `faltantes` puede incluir `tipo`, `monto` y
+`cuenta`; la categoría faltante se propone como `Otros` y no bloquea el registro. Para
+completar los datos faltantes se usa `POST /api/capturas/{id}/confirmar`.
 
 **Errores:** `400` (falta un campo, texto vacío, timestamp inválido), `401`, `409` (duplicado),
 `413` si el cuerpo excede el límite.
@@ -305,7 +320,50 @@ WhatsApp.
 `pendientes` = capturas en estado `pendiente` o `procesando`; `listos` = en `listo`; `total` =
 suma de ambos. No incluye confirmadas ni descartadas.
 
-### 8.6 Rutas del contrato anterior (retiradas)
+### 8.6 `GET /api/cuentas` — con token
+
+Devuelve las cuentas activas para que el bot pregunte cuál usar cuando el mensaje no la
+menciona.
+
+```json
+{
+  "cuentas": [
+    { "id": 1, "nombre": "Efectivo", "moneda": "COP" },
+    { "id": 2, "nombre": "Cuenta de ahorros", "moneda": "COP" }
+  ]
+}
+```
+
+### 8.7 `POST /api/capturas/{id}/confirmar` — con token
+
+Completa una captura con los datos que el usuario respondió por chat y la registra. Es
+idempotente a nivel de captura: si ya está confirmada responde `409`.
+
+**Petición** (todos los campos son opcionales; se combinan con la propuesta existente):
+
+```json
+{
+  "cuenta_id": 1,
+  "monto_centavos": 1850000,
+  "tipo": "gasto"
+}
+```
+
+**Respuesta 200:**
+
+```json
+{
+  "captura_id": 42,
+  "estado": "confirmado",
+  "transaccion_id": 89,
+  "resumen": "Gasto · $ 18.500 · Alimentación"
+}
+```
+
+**Errores:** `400 FALTAN_DATOS` (incluye `faltantes` en la raíz), `401`, `404` y `409` si ya
+fue confirmada.
+
+### 8.8 Rutas del contrato anterior (retiradas)
 
 | Ruta anterior | Estado |
 |---|---|
@@ -423,9 +481,11 @@ Está documentado como limitación aceptada en [ARCHITECTURE.md](ARCHITECTURE.md
 | 3 | POST | `/api/capturas/foto` | App :8787 | Sí | Sí (`message_id`) | Implementado (Fase 2.2) |
 | 4 | POST | `/api/audio` | App :8787 | Sí | Sí (`message_id`) | Implementado (Fase 2.2) |
 | 5 | GET | `/api/pendientes` | App :8787 | Sí | Sí | Implementado (Fase 2.2) |
-| 6 | GET | `/salud` | Bot :8788 | No | Sí | Pendiente (Prompt 3) |
-| 7 | POST | `/api/enviar` | Bot :8788 | Sí | No | Pendiente (Prompt 3) |
-| 8 | GET | `/api/estado` | Bot :8788 | Sí | Sí | Pendiente (Prompt 3) |
+| 6 | GET | `/api/cuentas` | App :8787 | Sí | Sí | Implementado (registro directo) |
+| 7 | POST | `/api/capturas/{id}/confirmar` | App :8787 | Sí | Por captura | Implementado (registro directo) |
+| 8 | GET | `/salud` | Bot :8788 | No | Sí | Pendiente (Fase 4) |
+| 9 | POST | `/api/enviar` | Bot :8788 | Sí | No | Pendiente (Fase 4) |
+| 10 | GET | `/api/estado` | Bot :8788 | Sí | Sí | Pendiente (Fase 4) |
 
 ---
 
@@ -437,8 +497,9 @@ Está documentado como limitación aceptada en [ARCHITECTURE.md](ARCHITECTURE.md
 | Tabla `captura_entrante` y bandeja de revisión | 2.1 | **Implementado** |
 | Parser de texto en español | 2.1 | **Implementado** |
 | Simulador de bot dentro de la app | 2.2 | **Implementado** |
-| Bot real con Baileys en Termux | Prompt 3 | No existe |
-| Cola de salida y acuses (`mensaje_salida`) | Prompt 3 | No existe |
+| Bot real con Baileys en Termux | Prompt 3 | **Implementado** |
+| Registro directo desde el bot y preguntas por datos faltantes | Prompt 3 | **Implementado** |
+| Cola de salida y acuses (`mensaje_salida`) | Fase 4 | No existe |
 | OCR de recibos | Fase 2.4 | No existe |
 | Transcripción de audio offline | Fase 2.5 | No existe |
 | Servicio en primer plano | Fase 2.6 | No existe |

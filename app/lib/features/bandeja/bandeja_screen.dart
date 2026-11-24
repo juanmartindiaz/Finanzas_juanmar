@@ -213,8 +213,17 @@ class _ItemCaptura extends StatelessWidget {
             ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/bandeja/${captura.id}'),
+        trailing: Icon(
+          captura.transaccionId != null ? Icons.edit_outlined : Icons.chevron_right,
+        ),
+        onTap: () {
+          final int? transaccionId = captura.transaccionId;
+          if (transaccionId != null) {
+            context.push('/transacciones/$transaccionId/editar');
+          } else {
+            context.push('/bandeja/${captura.id}');
+          }
+        },
       ),
     );
   }

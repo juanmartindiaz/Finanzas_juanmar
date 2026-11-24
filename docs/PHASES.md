@@ -165,7 +165,7 @@ OCR, audio, bot/WhatsApp, modo mock, presupuestos, deudas, créditos, metas, rec
 
 ---
 
-## Fase 2 — Captura (parte 1 completada: 2.1 bandeja + 2.2 canal HTTP)
+## Fase 2 — Captura (parte 2 completada: bot real + registro directo)
 
 ### Objetivo
 
@@ -183,7 +183,13 @@ Registrar un gasto **sin teclear casi nada**: por foto del recibo, por nota de v
 
 ### Pendiente para cerrar la Fase 2 (prompts siguientes)
 
-- **2.3:** bot real con Baileys en Termux y cola de salida (`mensaje_salida`).
+- **2.3:** bot real con Baileys en Termux (QR, autorización por número, cola persistente, logs) y **registro directo**: si el parser obtiene monto+tipo+cuenta, la transacción se crea sin revisión; si falta cuenta/monto/tipo, el bot lo pregunta por chat. La bandeja queda como historial editable. Ver ADR-041.
+- **2.4:** OCR de recibos con ML Kit.
+- **2.5:** transcripción offline de audio con `whisper_edge`.
+- **2.6:** servicio en primer plano para que el servidor siga vivo con la app cerrada.
+
+### Pendiente para cerrar la Fase 2 (prompts siguientes)
+
 - **2.4:** OCR de recibos con ML Kit.
 - **2.5:** transcripción offline de audio con `whisper_edge`.
 - **2.6:** servicio en primer plano para que el servidor siga vivo con la app cerrada.
@@ -209,7 +215,8 @@ Registrar un gasto **sin teclear casi nada**: por foto del recibo, por nota de v
 5. Simulador de bot con texto, imagen y audio usando el servidor real; la captura aparece en la bandeja.
 6. Confirmar una captura del simulador crea la transacción con `origen = bot`; descartar no crea transacción.
 7. La app funciona **100 % offline**: con modo avión, el simulador sigue entregando al servidor de loopback.
-8. `flutter analyze` limpio y `flutter test` en verde (68 pruebas).
+8. `flutter analyze` limpio y `flutter test` en verde (73 pruebas).
+9. **Parte 2:** el bot real registra por chat sin abrir la app; si falta la cuenta o el monto, pregunta y completa; la bandeja permite editar el movimiento registrado.
 
 ### Fuera de alcance de la parte 1
 

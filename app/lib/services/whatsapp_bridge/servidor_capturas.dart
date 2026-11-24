@@ -10,6 +10,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/utils/fechas.dart';
 import '../../data/repositories/capturas_repository.dart';
 import '../../data/repositories/categorias_repository.dart';
 import '../../data/repositories/configuracion_repository.dart';
@@ -20,6 +21,7 @@ import '../../domain/entities/categoria.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/etiqueta.dart';
 import '../../domain/entities/subcategoria.dart';
+import '../../domain/entities/transaccion.dart';
 import '../../domain/parsers/parser_texto.dart';
 import 'almacen_adjuntos.dart';
 import 'token_seguro.dart';
@@ -102,6 +104,17 @@ class ServidorCapturas {
         '/api/pendientes',
         (shelf.Request request) => _conToken(request, () => _pendientes()),
       )
+      ..get(
+        '/api/cuentas',
+        (shelf.Request request) => _conToken(request, () => _cuentas()),
+      )
+      ..post(
+        '/api/capturas/<id>/confirmar',
+        (shelf.Request request, String id) => _conToken(
+          request,
+          () => _confirmarCaptura(request, int.tryParse(id)),
+        ),
+      )
       ..post(
         '/api/capturas/texto',
         (shelf.Request request) => _conToken(request, () => _texto(request)),
@@ -170,6 +183,157 @@ class ServidorCapturas {
     });
   }
 
+  Future<shelf.Response> _cuentas() async {
+    final List<Cuenta> activas = (await cuentas.obtenerTodas())
+        .where((Cuenta cuenta) => cuenta.activa)
+        .toList();
+    return _json(200, <String, Object?>{
+      'cuentas': <Map<String, Object?>>[
+        for (final Cuenta cuenta in activas)
+          <String, Object?>{
+            'id': cuenta.id,
+            'nombre': cuenta.nombre,
+            'moneda': cuenta.moneda,
+          },
+      ],
+    });
+  }
+
+  List<String> _faltantesDe(
+    PropuestaCaptura propuesta, {
+    int? cuentaId,
+    int? montoCentavos,
+    TipoTransaccion? tipo,
+  }) {
+    return <String>[
+      if ((tipo ?? propuesta.tipo) == null) 'tipo',
+      if ((montoCentavos ?? propuesta.montoCentavos) == null) 'monto',
+      if ((cuentaId ?? propuesta.cuentaId) == null) 'cuenta',
+    ];
+  }
+
+  Future<int?> _autoConfirmar(
+    int capturaId,
+    PropuestaCaptura propuesta, {
+    int? cuentaId,
+    int? montoCentavos,
+    TipoTransaccion? tipo,
+  }) async {
+    final TipoTransaccion? tipoFinal = tipo ?? propuesta.tipo;
+    final int? montoFinal = montoCentavos ?? propuesta.montoCentavos;
+    final int? cuentaFinal = cuentaId ?? propuesta.cuentaId;
+    if (tipoFinal == null || montoFinal == null || cuentaFinal == null) {
+      return null;
+    }
+    final CapturaEntrante? captura = await capturas.obtener(capturaId);
+    if (captura == null) {
+      return null;
+    }
+
+    int? categoriaId = propuesta.categoriaId;
+    if (categoriaId == null) {
+      final List<Categoria> todas = await categorias.obtenerCategorias();
+      final NaturalezaCategoria naturaleza =
+          tipoFinal == TipoTransaccion.ingreso
+              ? NaturalezaCategoria.ingreso
+              : NaturalezaCategoria.gasto;
+      for (final Categoria categoria in todas) {
+        if (!categoria.archivada &&
+            categoria.naturaleza == naturaleza &&
+            categoria.nombre.toLowerCase() == 'otros') {
+          categoriaId = categoria.id;
+          break;
+        }
+      }
+    }
+
+    final DateTime ahora = DateTime.now();
+    return capturas.confirmar(
+      capturaId: capturaId,
+      tipo: tipoFinal,
+      montoCentavos: montoFinal,
+      moneda: propuesta.moneda,
+      cuentaId: cuentaFinal,
+      fecha: fechaIso(ahora),
+      fechaHora: ahora.millisecondsSinceEpoch,
+      categoriaId: categoriaId,
+      subcategoriaId: propuesta.subcategoriaId,
+      etiquetaIds: propuesta.etiquetaIds,
+      nota: captura.textoCrudo?.trim(),
+    );
+  }
+
+  Future<shelf.Response> _confirmarCaptura(
+    shelf.Request request,
+    int? capturaId,
+  ) async {
+    if (capturaId == null) {
+      throw const _ErrorHttp(404, 'NO_ENCONTRADO', 'La captura no existe.');
+    }
+    final Map<String, Object?> json = await _leerJson(request);
+    final int? cuentaId = _entero(json['cuenta_id']);
+    final int? montoCentavos = _entero(json['monto_centavos']);
+    final TipoTransaccion? tipo = switch (json['tipo']) {
+      'gasto' => TipoTransaccion.gasto,
+      'ingreso' => TipoTransaccion.ingreso,
+      'transferencia' => TipoTransaccion.transferencia,
+      _ => null,
+    };
+    final CapturaEntrante? captura = await capturas.obtener(capturaId);
+    if (captura == null) {
+      throw const _ErrorHttp(404, 'NO_ENCONTRADO', 'La captura no existe.');
+    }
+    final PropuestaCaptura propuesta = captura.propuesta ??
+        const PropuestaCaptura(
+          moneda: 'COP',
+          confianza: ConfianzaPropuesta.baja,
+        );
+    final List<String> faltantes = _faltantesDe(
+      propuesta,
+      cuentaId: cuentaId,
+      montoCentavos: montoCentavos,
+      tipo: tipo,
+    );
+    if (faltantes.isNotEmpty) {
+      throw _ErrorHttp(
+        400,
+        'FALTAN_DATOS',
+        'Faltan datos para registrar el movimiento.',
+        extra: <String, Object?>{'faltantes': faltantes},
+      );
+    }
+    final int? transaccionId;
+    try {
+      transaccionId = await _autoConfirmar(
+        capturaId,
+        propuesta,
+        cuentaId: cuentaId,
+        montoCentavos: montoCentavos,
+        tipo: tipo,
+      );
+    } on StateError {
+      throw _ErrorHttp(
+        409,
+        'CONFLICTO',
+        'La captura ya fue confirmada.',
+        extra: <String, Object?>{'captura_id': capturaId},
+      );
+    }
+    if (transaccionId == null) {
+      throw const _ErrorHttp(
+        400,
+        'FALTAN_DATOS',
+        'No se pudo completar el movimiento.',
+      );
+    }
+    return _json(200, <String, Object?>{
+      'captura_id': capturaId,
+      'estado': EstadoCaptura.confirmado.valorDb,
+      'transaccion_id': transaccionId,
+      'resumen': propuesta.resumen,
+    });
+  }
+
   Future<shelf.Response> _texto(shelf.Request request) async {
     final Map<String, Object?> json = await _leerJson(request);
     final String? messageId = _textoObligatorio(json, 'message_id');
@@ -223,9 +387,18 @@ class ServidorCapturas {
       texto: texto,
       propuesta: propuesta,
     );
+    final List<String> faltantes = _faltantesDe(propuesta);
+    final int? transaccionId =
+        faltantes.isEmpty ? await _autoConfirmar(id, propuesta) : null;
     return _json(201, <String, Object?>{
       'captura_id': id,
-      'estado': EstadoCaptura.listo.valorDb,
+      'estado': transaccionId == null
+          ? EstadoCaptura.listo.valorDb
+          : EstadoCaptura.confirmado.valorDb,
+      'transaccion_id': ?transaccionId,
+      'resumen': propuesta.resumen,
+      'faltantes': faltantes,
+      'cuenta_nombre': ?propuesta.cuentaNombre,
     });
   }
 
@@ -312,7 +485,7 @@ class ServidorCapturas {
         await categorias.obtenerSubcategorias();
     final List<Etiqueta> etiquetasActuales = await etiquetas.obtenerTodas();
     final List<Cuenta> cuentasActuales = await cuentas.obtenerTodas();
-    final int? cuentaPorDefecto = await configuracion.obtenerCapturaCuentaId();
+    final int? cuentaPorDefecto = null;
     final String monedaBase = await configuracion.obtenerMonedaBase();
     return parsearTexto(
       texto,

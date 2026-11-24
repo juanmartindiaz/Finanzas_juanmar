@@ -1,16 +1,22 @@
 import {
   RESPUESTAS,
+  elegirCuenta,
   extensionDeMedia,
   normalizarNumero,
   pareceTransaccion,
+  parsearMonto,
+  parsearTipo,
+  preguntaFaltante,
   respuestaExito,
   respuestaProcesado,
+  respuestaRegistrada,
   tipoDeMensaje,
 } from './mensajes.js';
 
 /**
- * Orquestador del bot: filtra mensajes, encola antes de entregar y reintenta.
- * No conoce Baileys ni HTTP concretos: todo se inyecta (testeable).
+ * Orquestador del bot: filtra mensajes, encola antes de entregar, registra
+ * automáticamente cuando la app tiene los datos y pregunta por chat lo que
+ * falte. No conoce Baileys ni HTTP concretos (todo se inyecta).
  */
 export function crearBot({
   config,
@@ -18,12 +24,14 @@ export function crearBot({
   appClient,
   cola,
   logger,
+  conversacion,
   reloj = {},
   intervaloReintentoMs = 30000,
 }) {
   const ahora = reloj.ahora ?? (() => Date.now());
   const programarIntervalo = reloj.programarIntervalo ?? setInterval;
   const limpiarIntervalo = reloj.limpiarIntervalo ?? clearInterval;
+  const conversaciones = conversacion ?? crearConversacionMemoria();
 
   let activo = false;
   let temporizador = null;
@@ -129,6 +137,13 @@ export function crearBot({
         await responder(evento, RESPUESTAS.formatoNoSoportado);
         return;
       }
+
+      const pendiente = conversaciones.obtener(numeroRemitente);
+      if (pendiente) {
+        await manejarRespuestaConversacion(evento, pendiente, texto);
+        return;
+      }
+
       if (!pareceTransaccion(texto)) {
         logger.info(
           `Texto sin monto; no se envía a la app (${evento.id})`,
@@ -183,14 +198,27 @@ export function crearBot({
 
     if (resultado.ok) {
       cola.marcarEntregado(mensaje);
+      const body = resultado.body ?? {};
       logger.info(
-        `Entregado ${mensaje.tipo} ${mensaje.message_id} → captura ${resultado.body?.captura_id}`,
+        `Entregado ${mensaje.tipo} ${mensaje.message_id} → captura ${body.captura_id}` +
+          (body.transaccion_id ? ` / transacción ${body.transaccion_id}` : ''),
         'entrega',
       );
-      if (!reintento) {
+      if (mensaje.tipo === 'texto' && body.transaccion_id) {
         await responder(
           evento,
-          respuestaExito(mensaje.tipo, resultado.body?.captura_id),
+          respuestaRegistrada(body.resumen, body.captura_id),
+        );
+        return;
+      }
+      if (mensaje.tipo === 'texto' && body.faltantes?.length) {
+        await iniciarConversacion(evento, body);
+        return;
+      }
+      if (!reintento || mensaje.tipo === 'texto') {
+        await responder(
+          evento,
+          respuestaExito(mensaje.tipo, body.captura_id),
         );
       }
       return;
@@ -227,6 +255,120 @@ export function crearBot({
     if (!reintento) {
       await responder(evento, RESPUESTAS.esperandoApp);
     }
+  }
+
+  async function iniciarConversacion(evento, body) {
+    if (!body?.captura_id) return;
+    const estado = {
+      capturaId: body.captura_id,
+      faltantes: Array.isArray(body.faltantes) ? [...body.faltantes] : [],
+      datos: {},
+      resumen: body.resumen ?? '',
+      remitente: evento.remitente,
+    };
+    conversaciones.guardar(normalizarNumero(evento.remitente), estado);
+    await preguntarSiguiente(evento, estado);
+  }
+
+  async function preguntarSiguiente(evento, estado) {
+    if (!estado.faltantes.length) {
+      conversaciones.limpiar(normalizarNumero(estado.remitente));
+      return;
+    }
+    const faltante = estado.faltantes[0];
+    let cuentas = [];
+    if (faltante === 'cuenta') {
+      cuentas = (await leerCuentas()) ?? [];
+    }
+    await responder(evento, preguntaFaltante(faltante, cuentas));
+  }
+
+  async function manejarRespuestaConversacion(evento, estado, texto) {
+    const numero = normalizarNumero(evento.remitente);
+    if (String(texto).toLowerCase().includes('cancelar')) {
+      conversaciones.limpiar(numero);
+      await responder(evento, 'Listo, cancelé ese registro.');
+      return;
+    }
+    const faltante = estado.faltantes[0];
+    if (faltante === 'cuenta') {
+      const cuentas = (await leerCuentas()) ?? [];
+      const cuenta = elegirCuenta(texto, cuentas);
+      if (!cuenta) {
+        await responder(
+          evento,
+          'No encontré esa cuenta. ' + preguntaFaltante('cuenta', cuentas),
+        );
+        return;
+      }
+      estado.datos.cuenta_id = cuenta.id;
+      estado.datos.cuenta_nombre = cuenta.nombre;
+    } else if (faltante === 'monto') {
+      const monto = parsearMonto(texto);
+      if (monto === null) {
+        await responder(evento, 'No entendí el monto. ' + preguntaFaltante('monto'));
+        return;
+      }
+      estado.datos.monto_centavos = monto;
+    } else if (faltante === 'tipo') {
+      const tipo = parsearTipo(texto);
+      if (!tipo) {
+        await responder(evento, 'No entendí. ' + preguntaFaltante('tipo'));
+        return;
+      }
+      estado.datos.tipo = tipo;
+    } else {
+      estado.faltantes.shift();
+    }
+
+    estado.faltantes = estado.faltantes.filter((f) => f !== faltante);
+    conversaciones.guardar(numero, estado);
+
+    const resultado = await appClient.confirmarCaptura(estado.capturaId, {
+      cuentaId: estado.datos.cuenta_id,
+      montoCentavos: estado.datos.monto_centavos,
+      tipo: estado.datos.tipo,
+    });
+    if (resultado.ok && resultado.body?.transaccion_id) {
+      conversaciones.limpiar(numero);
+      const resumen = estado.datos.cuenta_nombre
+        ? `${estado.resumen} · ${estado.datos.cuenta_nombre}`
+        : estado.resumen;
+      await responder(
+        evento,
+        respuestaRegistrada(resumen, resultado.body.captura_id ?? estado.capturaId),
+      );
+      logger.info(
+        `Registro completado ${estado.capturaId} → transacción ${resultado.body.transaccion_id}`,
+        'registro',
+      );
+      return;
+    }
+    if (resultado.status === 400 && Array.isArray(resultado.body?.faltantes)) {
+      estado.faltantes = resultado.body.faltantes;
+      conversaciones.guardar(numero, estado);
+      await preguntarSiguiente(evento, estado);
+      return;
+    }
+    if (resultado.status === 404) {
+      conversaciones.limpiar(numero);
+      await responder(evento, 'Esa captura ya no existe en la app.');
+      return;
+    }
+    logger.warn(
+      `No se pudo completar la captura ${estado.capturaId} (status ${resultado.status}).`,
+      'registro',
+    );
+    await responder(
+      evento,
+      'No pude completar el registro. Revisa que la app esté abierta e inténtalo otra vez.',
+    );
+  }
+
+  async function leerCuentas() {
+    const resultado = await appClient.cuentas();
+    if (!resultado.ok) return null;
+    return Array.isArray(resultado.body?.cuentas) ? resultado.body.cuentas : [];
   }
 
   async function entregar(mensaje) {
@@ -266,10 +408,23 @@ export function crearBot({
           'reintentos',
         );
         if (resultado.ok) {
-          await responder(
-            { remitente: mensaje.remitente },
-            respuestaProcesado(resultado.body?.captura_id),
-          );
+          const body = resultado.body ?? {};
+          if (mensaje.tipo === 'texto' && body.transaccion_id) {
+            await responder(
+              { remitente: mensaje.remitente },
+              respuestaRegistrada(body.resumen, body.captura_id),
+            );
+          } else if (mensaje.tipo === 'texto' && body.faltantes?.length) {
+            await iniciarConversacion(
+              { remitente: mensaje.remitente },
+              body,
+            );
+          } else {
+            await responder(
+              { remitente: mensaje.remitente },
+              respuestaProcesado(body.captura_id),
+            );
+          }
         }
         continue;
       }
@@ -305,5 +460,15 @@ export function crearBot({
     get activo() {
       return activo;
     },
+  };
+}
+
+function crearConversacionMemoria() {
+  const mapa = new Map();
+  return {
+    obtener: (remitente) => mapa.get(normalizarNumero(remitente)) ?? null,
+    guardar: (remitente, estado) =>
+      mapa.set(normalizarNumero(remitente), estado),
+    limpiar: (remitente) => mapa.delete(normalizarNumero(remitente)),
   };
 }

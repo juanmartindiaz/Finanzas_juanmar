@@ -12,7 +12,16 @@ import { crearServidorMock } from './mock-server.js';
 export const NUMERO = '573001234567';
 
 export async function crearEntorno({
-  respuesta = { status: 201, body: { captura_id: 1234, estado: 'listo' } },
+  respuesta = {
+    status: 201,
+    body: {
+      captura_id: 1234,
+      estado: 'confirmado',
+      transaccion_id: 77,
+      resumen: 'Gasto · $ 18.500 · Alimentación',
+      faltantes: [],
+    },
+  },
   config = {},
   media,
   dirReutilizable,

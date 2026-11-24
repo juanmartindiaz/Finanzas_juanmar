@@ -55,6 +55,7 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-038 | Origen mock/bot | La captura conserva `mock`; la transacción confirmada siempre es `bot` | Aceptada |
 | ADR-039 | Autorización del bot | Sin TOFU: el número autorizado se configura a mano; sin él no se procesa nada | Aceptada |
 | ADR-040 | Filtro de texto del bot | Solo se reenvían textos con un monto; la charla no ensucia la bandeja | Aceptada |
+| ADR-041 | Registro directo desde el bot | Con monto+tipo+cuenta se registra sin revisión; si falta algo, el bot pregunta | Aceptada |
 
 ---
 
@@ -541,6 +542,18 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Contexto | El dueño usa el mismo WhatsApp para chatear; cada “hola” o “¿cómo estás?” no debe ensuciar la bandeja. La app no expone un endpoint de “parsear sin guardar”, y añadirlo cambiaría el contrato. |
 | Consecuencias | Se evita ruido en la bandeja y mensajes innecesarios a la app; un mensaje de transacción sin monto (ej. “gasté en mercado”) se rechaza con un ejemplo, así que el usuario debe escribir el monto. La heurística está probada con “hola”, monto sin categoría y formatos no soportados. |
 | Alternativas descartadas | Enviar todo y filtrar en la app (la bandeja se llena de charla); endpoint nuevo de parseo (cambia contrato sin necesidad); bloquear cualquier texto sin categoría (rechazaría “gasté 20.000”, que sí es válido). |
+
+## ADR-041 — Registro directo desde el bot (sin revisión obligatoria)
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-041 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | Los mensajes de texto del bot se registran **automáticamente** cuando el parser obtiene **monto, tipo y cuenta**. Si falta alguno, el bot lo pregunta por chat (cuenta, monto o gasto/ingreso) y al recibir la respuesta completa y registra. La categoría faltante se guarda como **Otros** y luego se edita en la bandeja. La bandeja deja de ser un paso obligatorio para el texto del bot: queda como historial editable. Las capturas manuales y las fotos/audios **siguen requiriendo revisión** (no hay OCR ni transcripción todavía). |
+| Contexto | El dueño pidió que registrar por WhatsApp no exija abrir la app y confirmar; la cuenta se preguntaba siempre en la práctica. Se mantiene la confirmación humana solo para lo que el parser no puede completar con una pregunta corta y para los adjuntos sin OCR. |
+| Consecuencias | Un fallo del parser puede crear un movimiento con datos incorrectos; por eso el bot responde con el resumen, se puede editar en la bandeja y la cuenta nunca se inventa: se pregunta. El estado de la conversación se guarda en `cola/conversacion.json` para sobrevivir reinicios. ADR-031 sigue vigente para capturas manuales, fotos y audios. |
+| Alternativas descartadas | Mantener confirmación obligatoria (más fricción, ya rechazada por el dueño); elegir la primera cuenta automáticamente (riesgo de registrar en la cuenta equivocada); preguntar la categoría (se resuelve con Otros y edición posterior). |
 
 ## Decisiones que no se cambian sin el dueño
 

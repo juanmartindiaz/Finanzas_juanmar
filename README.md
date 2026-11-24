@@ -13,11 +13,10 @@ Consta de **dos componentes**:
    los pasará a la app por HTTP local, y enviará los mensajes que la app le pida (por ejemplo,
    los reportes diarios). Se conecta con Baileys, sin la API oficial de Meta.
 
-> **Estado actual: Fase 2 parte 2 completada** (bot real con Baileys + bandeja + canal HTTP).
-> La app registra cuentas, categorías, etiquetas, ingresos, gastos y transferencias, muestra el
-> dashboard, captura por texto con parser en español y recibe capturas por HTTP. El **bot de
-> WhatsApp** ya está implementado en `whatsapp_bot/`; falta probarlo en el teléfono real (Termux
-> + número secundario). OCR, transcripción y foreground service vienen en los próximos prompts.
+> **Estado actual: Fase 2 parte 2 completada** (bot real con Baileys + registro directo desde
+> WhatsApp). El bot interpreta el mensaje, registra automáticamente si tiene monto, tipo y
+> cuenta, y pregunta por chat lo que falte. La bandeja queda como historial editable. El OCR,
+> la transcripción y el foreground service vienen en los próximos prompts.
 
 ---
 
@@ -151,10 +150,10 @@ Captura real de la Fase 1:
 ```powershell
 cd app
 flutter analyze     # "No issues found!"
-flutter test        # "All tests passed!" (68 pruebas de la app)
+flutter test        # "All tests passed!" (73 pruebas de la app)
 
 cd ../whatsapp_bot
-npm test            # 23 pruebas del bot con transporte falso
+npm test            # 30 pruebas del bot con transporte falso
 ```
 
 ### Probar los flujos principales (5 minutos)

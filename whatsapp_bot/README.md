@@ -3,8 +3,9 @@
 Componente **separado** de la app. Corre en el mismo teléfono Android, dentro de
 **Termux**, con un **número secundario** de WhatsApp. Recibe tus mensajes
 (texto, audio, foto), los entrega a la app por `http://127.0.0.1:8787` y te
-responde por WhatsApp. **El bot no crea transacciones**: la app las propone y tú
-las confirmas en la bandeja.
+responde por WhatsApp. **El bot registra el movimiento automáticamente** cuando entiende
+monto, tipo y cuenta; si falta un dato, lo pregunta por chat. La bandeja de la app queda como
+historial editable (y para revisar fotos/audios, que aún no tienen OCR ni transcripción).
 
 Repositorio: <https://github.com/juanmartindiaz/Finanzas_juanmar>
 
@@ -130,8 +131,10 @@ La sesión queda guardada en `auth/`; en los siguientes arranques no pide QR.
 
 | Mensaje | Acción |
 |---|---|
-| Texto con monto (`gasté 18.500 en mercado`) | Envía a la app; responde “✅ Recibido (#xxxx). Revísalo en la app.” |
-| Texto sin monto (`hola`) | **No crea captura**; responde con un ejemplo de cómo escribir |
+| Texto con monto, tipo y cuenta (`gasté 18.500 en mercado en efectivo`) | Registra la transacción automáticamente; responde “✅ Registrado: … Puedes editarlo en la bandeja.” |
+| Texto sin cuenta o sin monto/tipo (`gasté 18.500 en mercado`, `gasté`) | Pregunta por chat el primer dato que falta y, con la respuesta, registra sin abrir la app |
+| Texto con cuenta por defecto | El bot **pregunta la cuenta** siempre que el mensaje no la mencione (no la inventa) |
+| Texto sin monto ni palabra de transacción (`hola`) | **No crea nada**; responde con un ejemplo de cómo escribir |
 | Foto | La guarda como captura; responde “📷 Foto guardada…”. **Sin OCR:** el monto lo pones tú en la app |
 | Audio | Lo guarda como captura; responde “🎤 Audio guardado…”. **Sin transcripción todavía** |
 | Video, sticker, documento, ubicación, contacto | Responde “⚠️ Formato no soportado…” y **no** crea captura |
@@ -146,7 +149,12 @@ Reglas:
   “✅ Procesado (#xxxx)…”.
 - `401`: avisa del token y **no** reintenta. `413`: avisa del tamaño y no
   encola. `409`: se trata como entregado (idempotencia).
-- Tú confirmas en la bandeja de la app; el bot nunca guarda finanzas.
+- El texto del bot se registra automáticamente si tiene monto, tipo y cuenta; si falta algo,
+  el bot pregunta y guarda el estado de la conversación en `cola/conversacion.json`.
+- La categoría faltante se guarda como **Otros**; el movimiento se puede editar después en la
+  bandeja de la app.
+- Fotos y audios quedan pendientes de revisión (todavía no hay OCR ni transcripción).
+- Las capturas que hagas manualmente dentro de la app siguen requiriendo confirmación.
 
 ## 9. Arranque automático con Termux:Boot
 
@@ -220,8 +228,10 @@ Hazlo en este orden y anota el resultado de cada paso:
 1. **Salud:** app abierta, `curl http://127.0.0.1:8787/api/salud` en Termux debe
    responder `{"ok":true,...}`.
 2. **Texto:** desde tu número principal envía `gasté 18.500 en mercado`.
-   Esperado: respuesta “✅ Recibido (#xxxx)…” en ~2 s; en la app, bandeja →
-   captura → confirmas → aparece la transacción en el dashboard.
+   Esperado: el bot pregunta **“¿De qué cuenta? Responde con el nombre: Efectivo, …”**.
+   Responde `Efectivo` y debe llegar “✅ Registrado: …”. El movimiento aparece en el
+   dashboard sin que tengas que confirmarlo en la bandeja (allí puedes editarlo).
+   También puedes probar `gasté 18.500 en mercado en efectivo`, que se registra directo.
 3. **Foto:** envía una foto de recibo. Esperado: “📷 Foto guardada…” y la imagen
    en la bandeja (sin OCR; completas a mano).
 4. **Audio:** envía una nota de voz. Esperado: “🎤 Audio guardado…” y el audio
@@ -229,7 +239,7 @@ Hazlo en este orden y anota el resultado de cada paso:
 5. **App cerrada:** fuerza la detención de la app (Ajustes de Android →
    Aplicaciones → Gestor Finanzas → Forzar detención). Envía `gasté 5.000 en
    taxi`. Esperado: “⏳ Guardado, esperando app”; abre la app y en ≤ 30 s debe
-   llegar “✅ Procesado…” y la captura en la bandeja.
+   llegar “✅ Registrado…” (o la pregunta de la cuenta) y el movimiento queda registrado.
 6. **No autorizado:** con un tercer número escribe al bot. Esperado: el bot no
    responde y no aparece nada en la bandeja.
 7. **Charla:** envía `hola`. Esperado: “No identifiqué un monto ni categoría…” y
@@ -251,7 +261,7 @@ npm install
 npm test
 ```
 
-- 23 pruebas con **transporte falso** (sin WhatsApp) y un servidor HTTP mock:
+- 30 pruebas con **transporte falso** (sin WhatsApp) y un servidor HTTP mock:
   texto/foto/audio, códigos 401/409/413/5xx, conexión rechazada, cola
   persistente, reinicio simulado, número autorizado (incluido el caso “sin
   configurar”), formatos no soportados, charla, posición del monto, backoff,

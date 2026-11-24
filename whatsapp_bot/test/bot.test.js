@@ -36,7 +36,7 @@ describe('bot: flujo feliz y filtros', () => {
       canal: 'texto',
       timestamp: evento.timestamp,
     });
-    expect(entorno.transporte.enviados[0].texto).toContain('✅ Recibido (#1234)');
+    expect(entorno.transporte.enviados[0].texto).toContain('✅ Registrado');
     expect(entorno.cola.contarPendientes()).toBe(0);
     expect(entorno.cola.contarEntregados()).toBe(1);
     await entorno.cerrar();
@@ -92,7 +92,7 @@ describe('bot: flujo feliz y filtros', () => {
     const entornoMonto = await crearEntorno();
     await entornoMonto.transporte.emitir(eventoTexto({ texto: 'gasté 20.000' }));
     expect(entornoMonto.servidor.peticiones).toHaveLength(1);
-    expect(entornoMonto.transporte.enviados[0].texto).toContain('✅ Recibido');
+    expect(entornoMonto.transporte.enviados[0].texto).toContain('✅ Registrado');
     await entornoMonto.cerrar();
   });
 
@@ -330,5 +330,149 @@ describe('logger', () => {
     );
     expect(fs.existsSync(path.join(dir, 'bot-2026-11-10.log'))).toBe(false);
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('bot: registro automatico y preguntas', () => {
+  test('pregunta la cuenta y con la respuesta registra', async () => {
+    const entorno = await crearEntorno({
+      respuesta: (req) => {
+        if (req.url === '/api/cuentas') {
+          return {
+            status: 200,
+            body: {
+              cuentas: [
+                { id: 1, nombre: 'Efectivo', moneda: 'COP' },
+                { id: 2, nombre: 'Ahorros', moneda: 'COP' },
+              ],
+            },
+          };
+        }
+        if (req.url === '/api/capturas/55/confirmar') {
+          return {
+            status: 200,
+            body: {
+              captura_id: 55,
+              estado: 'confirmado',
+              transaccion_id: 9,
+              resumen: 'Gasto · $ 20.000 · Otros',
+            },
+          };
+        }
+        return {
+          status: 201,
+          body: {
+            captura_id: 55,
+            estado: 'listo',
+            resumen: 'Gasto · $ 20.000 · Otros',
+            faltantes: ['cuenta'],
+          },
+        };
+      },
+    });
+    await entorno.transporte.emitir(
+      eventoTexto({ id: 'm-cuenta', texto: 'gasté 20.000' }),
+    );
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('¿De qué cuenta?');
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('Efectivo');
+
+    await entorno.transporte.emitir(
+      eventoTexto({ id: 'm-cuenta-resp', texto: 'Efectivo' }),
+    );
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('✅ Registrado');
+    const confirmar = entorno.servidor.peticiones.find(
+      (p) => p.url === '/api/capturas/55/confirmar',
+    );
+    expect(confirmar).toBeTruthy();
+    expect(JSON.parse(confirmar.cuerpo.toString())).toMatchObject({
+      cuenta_id: 1,
+    });
+    await entorno.cerrar();
+  });
+
+  test('pregunta el monto y con la respuesta registra', async () => {
+    const entorno = await crearEntorno({
+      respuesta: (req) => {
+        if (req.url === '/api/capturas/66/confirmar') {
+          return {
+            status: 200,
+            body: {
+              captura_id: 66,
+              estado: 'confirmado',
+              transaccion_id: 10,
+              resumen: 'Gasto · $ 18.500 · Otros',
+            },
+          };
+        }
+        return {
+          status: 201,
+          body: {
+            captura_id: 66,
+            estado: 'listo',
+            resumen: 'Gasto',
+            faltantes: ['monto'],
+          },
+        };
+      },
+    });
+    await entorno.transporte.emitir(
+      eventoTexto({ id: 'm-monto', texto: 'gasté' }),
+    );
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('¿Cuánto fue?');
+
+    await entorno.transporte.emitir(
+      eventoTexto({ id: 'm-monto-resp', texto: '18.500' }),
+    );
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('✅ Registrado');
+    const confirmar = entorno.servidor.peticiones.find(
+      (p) => p.url === '/api/capturas/66/confirmar',
+    );
+    expect(JSON.parse(confirmar.cuerpo.toString())).toMatchObject({
+      monto_centavos: 1850000,
+    });
+    await entorno.cerrar();
+  });
+
+  test('pregunta gasto o ingreso y con la respuesta registra', async () => {
+    const entorno = await crearEntorno({
+      respuesta: (req) => {
+        if (req.url === '/api/capturas/77/confirmar') {
+          return {
+            status: 200,
+            body: {
+              captura_id: 77,
+              estado: 'confirmado',
+              transaccion_id: 11,
+              resumen: 'Ingreso · $ 500.000 · Otros',
+            },
+          };
+        }
+        return {
+          status: 201,
+          body: {
+            captura_id: 77,
+            estado: 'listo',
+            resumen: 'Ingreso',
+            faltantes: ['tipo'],
+          },
+        };
+      },
+    });
+    await entorno.transporte.emitir(
+      eventoTexto({ id: 'm-tipo', texto: 'recibí 500.000' }),
+    );
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('gasto o un ingreso');
+
+    await entorno.transporte.emitir(
+      eventoTexto({ id: 'm-tipo-resp', texto: 'ingreso' }),
+    );
+    expect(entorno.transporte.enviados.at(-1).texto).toContain('✅ Registrado');
+    const confirmar = entorno.servidor.peticiones.find(
+      (p) => p.url === '/api/capturas/77/confirmar',
+    );
+    expect(JSON.parse(confirmar.cuerpo.toString())).toMatchObject({
+      tipo: 'ingreso',
+    });
+    await entorno.cerrar();
   });
 });

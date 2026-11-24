@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { crearAppClient } from './lib/app-client.js';
 import { crearBot } from './lib/bot.js';
 import { crearCola } from './lib/cola.js';
+import { crearConversacion } from './lib/conversacion.js';
 import { cargarConfig, preguntarNumeroSiFalta } from './lib/config.js';
 import { crearLogger } from './lib/logger.js';
 import { activarWakeLock } from './lib/termux.js';
@@ -49,6 +50,7 @@ if (!config.token || config.token.startsWith('COPIA_AQUI')) {
 activarWakeLock(logger);
 
 const cola = crearCola({ dir: baseDir });
+const conversacion = crearConversacion({ dir: baseDir });
 const appClient = crearAppClient({
   baseUrl: `http://127.0.0.1:${config.puerto_app}`,
   token: config.token,
@@ -57,7 +59,7 @@ const transporte = new TransporteBaileys({
   authDir: path.join(baseDir, 'auth'),
   logger,
 });
-const bot = crearBot({ config, transporte, appClient, cola, logger });
+const bot = crearBot({ config, transporte, appClient, cola, conversacion, logger });
 
 let cerrando = false;
 async function salir(senal) {
