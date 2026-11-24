@@ -51,6 +51,8 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-034 | Parser de texto | Heurístico, con confianza y campos faltantes | Aceptada |
 | ADR-035 | Cuenta por defecto | Configurable en Ajustes (`captura_cuenta_id`) | Aceptada |
 | ADR-036 | Servidor de capturas | Loopback sin servicio en primer plano (parte 1) | Aceptada |
+| ADR-037 | Parser de transferencias | Queda pendiente para Prompt 4/5; por ahora se registran a mano | Aceptada |
+| ADR-038 | Origen mock/bot | La captura conserva `mock`; la transacción confirmada siempre es `bot` | Aceptada |
 
 ---
 
@@ -489,6 +491,30 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Alternativas descartadas | Foreground service ya (más permisos y notificación permanente antes de tiempo); no tener servidor (no hay canal). |
 
 ---
+
+## ADR-037 — El parser de transferencias queda pendiente (Prompt 4/5)
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-037 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | El parser de texto de la Fase 2 **no** reconoce transferencias ("transferí X de A a B"). Las transferencias se siguen registrando a mano en el formulario; el parser automático de transferencias queda para el **Prompt 4/5**. |
+| Contexto | El objetivo del Prompt 3 es validar el bot real con WhatsApp; añadir ahora el parseo de transferencias (dos cuentas, dos montos, tasa) multiplica los casos de error y distrae del flujo principal. |
+| Consecuencias | Un mensaje de transferencia por WhatsApp quedará como captura de texto con faltantes y se completará a mano; cuando llegue el parser se podrá proponer cuenta origen/destino y montos. No hay riesgo de datos: nunca se guarda sin confirmar. |
+| Alternativas descartadas | Implementarlo ya (más superficie de error antes de la primera prueba real); rechazar esos mensajes (el usuario perdería la captura); inventar una transferencia incompleta (peligroso). |
+
+## ADR-038 — `origen=mock` se conserva en la captura; `origen=bot` en la transacción
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-038 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | La fila de `captura_entrante` conserva el origen real del mensaje: **`mock`** si vino del simulador de la app, **`bot`** si vino del bot de WhatsApp y **`manual`** si se capturó dentro de la app. Al confirmar, la **transacción** siempre lleva `origen = bot` cuando la captura vino del canal (bot o mock) y `origen = manual` cuando se creó en la app. |
+| Contexto | Se necesita auditar si una captura fue simulada o real (para depurar el canal y la primera prueba en el teléfono), pero para las finanzas la transacción solo debe distinguir "la registró el canal" de "la registré yo". |
+| Consecuencias | Se puede filtrar/auditar la bandeja por origen y saber qué capturas fueron de prueba; los reportes ven la transacción como `bot`, sin ruido del simulador. El simulador debe enviar `X-Bot-Simulado: 1` para quedar como `mock`. |
+| Alternativas descartadas | Guardar `mock` también en la transacción (contamina reportes); perder el origen en la captura (no se podría distinguir una prueba de un mensaje real); usar solo `manual/bot` en ambos lados (sin trazabilidad de simulaciones). |
 
 ## Decisiones que no se cambian sin el dueño
 
