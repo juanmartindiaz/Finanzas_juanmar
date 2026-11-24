@@ -6,6 +6,8 @@ Componente **separado** de la app. Corre en el mismo teléfono Android, dentro d
 responde por WhatsApp. **El bot no crea transacciones**: la app las propone y tú
 las confirmas en la bandeja.
 
+Repositorio: <https://github.com/juanmartindiaz/Finanzas_juanmar>
+
 > **Estado:** Fase 2 parte 2 (Prompt 3). Sin OCR (2.4), sin transcripción de
 > audio (2.5), sin servicio en primer plano en la app (2.6) y sin cola de
 > salida/reportes (`mensaje_salida` es Fase 4).
@@ -37,12 +39,24 @@ Método recomendado: clonar el repositorio en Termux.
 
 ```bash
 cd ~
-git clone <URL_DEL_REPOSITORIO> gestor_finanzas
+git clone https://github.com/juanmartindiaz/Finanzas_juanmar.git gestor_finanzas
 cd gestor_finanzas/whatsapp_bot
 ```
 
+Repositorio: <https://github.com/juanmartindiaz/Finanzas_juanmar>
+
+Para actualizar más adelante (cuando haya cambios nuevos):
+
+```bash
+cd ~/gestor_finanzas
+git pull
+cd whatsapp_bot
+npm install
+```
+
 Alternativa por USB: copia la carpeta `whatsapp_bot/` al almacenamiento del
-teléfono y muévela con `termux-setup-storage` + `cp`.
+teléfono y muévela con `termux-setup-storage` + `cp` (menos cómoda para
+actualizar).
 
 ## 4. Instalar las dependencias del bot
 
