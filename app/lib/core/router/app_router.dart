@@ -2,11 +2,16 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/accounts/cuenta_form_screen.dart';
 import '../../features/accounts/cuentas_list_screen.dart';
+import '../../features/bandeja/bandeja_screen.dart';
+import '../../features/bandeja/revision_captura_screen.dart';
 import '../../features/dashboard/dashboard_screen.dart';
 import '../../features/settings/ajustes_screen.dart';
+import '../../features/settings/canal_bot_screen.dart';
+import '../../features/settings/capturas_screen.dart';
 import '../../features/settings/categorias_screen.dart';
 import '../../features/settings/etiquetas_screen.dart';
 import '../../features/settings/monedas_screen.dart';
+import '../../features/settings/simulador_screen.dart';
 import '../../features/transactions/transaccion_form_screen.dart';
 import '../../features/transactions/transacciones_list_screen.dart';
 
@@ -58,6 +63,20 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     GoRoute(
+      path: '/bandeja',
+      name: 'bandeja',
+      builder: (context, state) => const BandejaScreen(),
+      routes: <RouteBase>[
+        GoRoute(
+          path: ':id',
+          name: 'bandeja-revision',
+          builder: (context, state) => RevisionCapturaScreen(
+            capturaId: int.tryParse(state.pathParameters['id'] ?? ''),
+          ),
+        ),
+      ],
+    ),
+    GoRoute(
       path: '/ajustes',
       name: 'ajustes',
       builder: (context, state) => const AjustesScreen(),
@@ -76,6 +95,21 @@ final GoRouter appRouter = GoRouter(
           path: 'monedas',
           name: 'ajustes-monedas',
           builder: (context, state) => const MonedasScreen(),
+        ),
+        GoRoute(
+          path: 'canal-bot',
+          name: 'ajustes-canal-bot',
+          builder: (context, state) => const CanalBotScreen(),
+        ),
+        GoRoute(
+          path: 'capturas',
+          name: 'ajustes-capturas',
+          builder: (context, state) => const CapturasScreen(),
+        ),
+        GoRoute(
+          path: 'simulador',
+          name: 'ajustes-simulador',
+          builder: (context, state) => const SimuladorScreen(),
         ),
       ],
     ),

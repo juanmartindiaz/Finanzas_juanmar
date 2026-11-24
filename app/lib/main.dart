@@ -5,24 +5,61 @@ import 'core/config/app_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/database/app_database.dart';
+import 'data/database/arranque_bd.dart';
 import 'data/database/sembrador.dart';
 import 'data/providers.dart';
+import 'data/repositories/capturas_repository.dart';
+import 'data/repositories/categorias_repository.dart';
+import 'data/repositories/configuracion_repository.dart';
+import 'data/repositories/cuentas_repository.dart';
+import 'data/repositories/etiquetas_repository.dart';
+import 'data/repositories/transacciones_repository.dart';
+import 'services/whatsapp_bridge/almacen_adjuntos.dart';
+import 'services/whatsapp_bridge/servidor_capturas.dart';
 
-/// Punto de entrada de la aplicación (Fase 1: MVP local).
+/// Punto de entrada (Fase 2 parte 1: bandeja de capturas + canal HTTP).
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final AppDatabase db = AppDatabase();
-  await SembradorCategorias(db).ejecutarSiHaceFalta();
+  try {
+    final AppDatabase db = await abrirBaseDeDatosConRespaldo();
+    await SembradorCategorias(db).ejecutarSiHaceFalta();
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        dbProvider.overrideWith((Ref ref) => db),
-      ],
-      child: const GestorFinanzasApp(),
-    ),
-  );
+    final ConfiguracionRepository configuracion = ConfiguracionRepository(db);
+    await configuracion.asegurarValoresIniciales();
+
+    final AlmacenAdjuntos almacen = AlmacenAdjuntos();
+    final ServidorCapturas servidor = ServidorCapturas(
+      configuracion: configuracion,
+      capturas: CapturasRepository(
+        db,
+        TransaccionesRepository(db),
+      ),
+      categorias: CategoriasRepository(db),
+      etiquetas: EtiquetasRepository(db),
+      cuentas: CuentasRepository(db),
+      almacen: almacen,
+    );
+    // Si el puerto está ocupado, la app sigue funcionando sin servidor
+    // (Ajustes muestra el error).
+    try {
+      await servidor.iniciar();
+    } on Object {
+      // El error queda en servidor.ultimoError.
+    }
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          dbProvider.overrideWith((Ref ref) => db),
+          servidorCapturasProvider.overrideWith((Ref ref) => servidor),
+        ],
+        child: const GestorFinanzasApp(),
+      ),
+    );
+  } on ErrorArranqueBase catch (error) {
+    runApp(_ArranqueFallido(error: error));
+  }
 }
 
 /// Aplicación "Gestor Finanzas".
@@ -41,6 +78,47 @@ class GestorFinanzasApp extends StatelessWidget {
       supportedLocales: const <Locale>[Locale('es', 'CO'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       routerConfig: appRouter,
+    );
+  }
+}
+
+class _ArranqueFallido extends StatelessWidget {
+  const _ArranqueFallido({required this.error});
+
+  final ErrorArranqueBase error;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(brightness: Brightness.light),
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'No se pudo abrir la base de datos',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(error.mensaje, textAlign: TextAlign.center),
+                const SizedBox(height: 8),
+                Text(
+                  error.detalle?.toString() ?? '',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

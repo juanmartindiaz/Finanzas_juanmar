@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solo para el servidor y el cliente de loopback (127.0.0.1). La app no hace
+         llamadas de salida a internet en la Fase 2; 100 % offline. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Gestor Finanzas"
         android:name="${applicationName}"

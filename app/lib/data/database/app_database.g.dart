@@ -4970,6 +4970,745 @@ class ConfiguracionCompanion extends UpdateCompanion<ConfiguracionRow> {
   }
 }
 
+class $CapturaEntranteTable extends CapturaEntrante
+    with TableInfo<$CapturaEntranteTable, CapturaRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CapturaEntranteTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _canalMeta = const VerificationMeta('canal');
+  @override
+  late final GeneratedColumn<String> canal = GeneratedColumn<String>(
+    'canal',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (canal IN (\'texto\',\'audio\',\'foto\',\'app\'))',
+  );
+  static const VerificationMeta _origenMeta = const VerificationMeta('origen');
+  @override
+  late final GeneratedColumn<String> origen = GeneratedColumn<String>(
+    'origen',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    $customConstraints:
+        'NOT NULL CHECK (origen IN (\'mock\',\'bot\',\'manual\'))',
+  );
+  static const VerificationMeta _messageIdExternoMeta = const VerificationMeta(
+    'messageIdExterno',
+  );
+  @override
+  late final GeneratedColumn<String> messageIdExterno = GeneratedColumn<String>(
+    'message_id_externo',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _textoCrudoMeta = const VerificationMeta(
+    'textoCrudo',
+  );
+  @override
+  late final GeneratedColumn<String> textoCrudo = GeneratedColumn<String>(
+    'texto_crudo',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _adjuntoPathMeta = const VerificationMeta(
+    'adjuntoPath',
+  );
+  @override
+  late final GeneratedColumn<String> adjuntoPath = GeneratedColumn<String>(
+    'adjunto_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _estadoMeta = const VerificationMeta('estado');
+  @override
+  late final GeneratedColumn<String> estado = GeneratedColumn<String>(
+    'estado',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    $customConstraints: 'NOT NULL DEFAULT \'pendiente\' CHECK (estado IN (\'pendiente\',\'procesando\',\'listo\',\'confirmado\',\'descartado\',\'error\'))',
+    defaultValue: const CustomExpression('\'pendiente\''),
+  );
+  static const VerificationMeta _propuestaJsonMeta = const VerificationMeta(
+    'propuestaJson',
+  );
+  @override
+  late final GeneratedColumn<String> propuestaJson = GeneratedColumn<String>(
+    'propuesta_json',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorDetalleMeta = const VerificationMeta(
+    'errorDetalle',
+  );
+  @override
+  late final GeneratedColumn<String> errorDetalle = GeneratedColumn<String>(
+    'error_detalle',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _transaccionIdMeta = const VerificationMeta(
+    'transaccionId',
+  );
+  @override
+  late final GeneratedColumn<int> transaccionId = GeneratedColumn<int>(
+    'transaccion_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES transacciones (id)',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _procesadaAtMeta = const VerificationMeta(
+    'procesadaAt',
+  );
+  @override
+  late final GeneratedColumn<int> procesadaAt = GeneratedColumn<int>(
+    'procesada_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    canal,
+    origen,
+    messageIdExterno,
+    textoCrudo,
+    adjuntoPath,
+    estado,
+    propuestaJson,
+    errorDetalle,
+    transaccionId,
+    createdAt,
+    procesadaAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'captura_entrante';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CapturaRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('canal')) {
+      context.handle(
+        _canalMeta,
+        canal.isAcceptableOrUnknown(data['canal']!, _canalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_canalMeta);
+    }
+    if (data.containsKey('origen')) {
+      context.handle(
+        _origenMeta,
+        origen.isAcceptableOrUnknown(data['origen']!, _origenMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_origenMeta);
+    }
+    if (data.containsKey('message_id_externo')) {
+      context.handle(
+        _messageIdExternoMeta,
+        messageIdExterno.isAcceptableOrUnknown(
+          data['message_id_externo']!,
+          _messageIdExternoMeta,
+        ),
+      );
+    }
+    if (data.containsKey('texto_crudo')) {
+      context.handle(
+        _textoCrudoMeta,
+        textoCrudo.isAcceptableOrUnknown(data['texto_crudo']!, _textoCrudoMeta),
+      );
+    }
+    if (data.containsKey('adjunto_path')) {
+      context.handle(
+        _adjuntoPathMeta,
+        adjuntoPath.isAcceptableOrUnknown(
+          data['adjunto_path']!,
+          _adjuntoPathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('estado')) {
+      context.handle(
+        _estadoMeta,
+        estado.isAcceptableOrUnknown(data['estado']!, _estadoMeta),
+      );
+    }
+    if (data.containsKey('propuesta_json')) {
+      context.handle(
+        _propuestaJsonMeta,
+        propuestaJson.isAcceptableOrUnknown(
+          data['propuesta_json']!,
+          _propuestaJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error_detalle')) {
+      context.handle(
+        _errorDetalleMeta,
+        errorDetalle.isAcceptableOrUnknown(
+          data['error_detalle']!,
+          _errorDetalleMeta,
+        ),
+      );
+    }
+    if (data.containsKey('transaccion_id')) {
+      context.handle(
+        _transaccionIdMeta,
+        transaccionId.isAcceptableOrUnknown(
+          data['transaccion_id']!,
+          _transaccionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('procesada_at')) {
+      context.handle(
+        _procesadaAtMeta,
+        procesadaAt.isAcceptableOrUnknown(
+          data['procesada_at']!,
+          _procesadaAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CapturaRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CapturaRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      canal: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}canal'],
+      )!,
+      origen: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}origen'],
+      )!,
+      messageIdExterno: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message_id_externo'],
+      ),
+      textoCrudo: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}texto_crudo'],
+      ),
+      adjuntoPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}adjunto_path'],
+      ),
+      estado: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}estado'],
+      )!,
+      propuestaJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}propuesta_json'],
+      ),
+      errorDetalle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_detalle'],
+      ),
+      transaccionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}transaccion_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      procesadaAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}procesada_at'],
+      ),
+    );
+  }
+
+  @override
+  $CapturaEntranteTable createAlias(String alias) {
+    return $CapturaEntranteTable(attachedDatabase, alias);
+  }
+}
+
+class CapturaRow extends DataClass implements Insertable<CapturaRow> {
+  final int id;
+  final String canal;
+  final String origen;
+  final String? messageIdExterno;
+  final String? textoCrudo;
+  final String? adjuntoPath;
+  final String estado;
+  final String? propuestaJson;
+  final String? errorDetalle;
+  final int? transaccionId;
+  final int createdAt;
+  final int? procesadaAt;
+  const CapturaRow({
+    required this.id,
+    required this.canal,
+    required this.origen,
+    this.messageIdExterno,
+    this.textoCrudo,
+    this.adjuntoPath,
+    required this.estado,
+    this.propuestaJson,
+    this.errorDetalle,
+    this.transaccionId,
+    required this.createdAt,
+    this.procesadaAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['canal'] = Variable<String>(canal);
+    map['origen'] = Variable<String>(origen);
+    if (!nullToAbsent || messageIdExterno != null) {
+      map['message_id_externo'] = Variable<String>(messageIdExterno);
+    }
+    if (!nullToAbsent || textoCrudo != null) {
+      map['texto_crudo'] = Variable<String>(textoCrudo);
+    }
+    if (!nullToAbsent || adjuntoPath != null) {
+      map['adjunto_path'] = Variable<String>(adjuntoPath);
+    }
+    map['estado'] = Variable<String>(estado);
+    if (!nullToAbsent || propuestaJson != null) {
+      map['propuesta_json'] = Variable<String>(propuestaJson);
+    }
+    if (!nullToAbsent || errorDetalle != null) {
+      map['error_detalle'] = Variable<String>(errorDetalle);
+    }
+    if (!nullToAbsent || transaccionId != null) {
+      map['transaccion_id'] = Variable<int>(transaccionId);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    if (!nullToAbsent || procesadaAt != null) {
+      map['procesada_at'] = Variable<int>(procesadaAt);
+    }
+    return map;
+  }
+
+  CapturaEntranteCompanion toCompanion(bool nullToAbsent) {
+    return CapturaEntranteCompanion(
+      id: Value(id),
+      canal: Value(canal),
+      origen: Value(origen),
+      messageIdExterno: messageIdExterno == null && nullToAbsent
+          ? const Value.absent()
+          : Value(messageIdExterno),
+      textoCrudo: textoCrudo == null && nullToAbsent
+          ? const Value.absent()
+          : Value(textoCrudo),
+      adjuntoPath: adjuntoPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(adjuntoPath),
+      estado: Value(estado),
+      propuestaJson: propuestaJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(propuestaJson),
+      errorDetalle: errorDetalle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorDetalle),
+      transaccionId: transaccionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transaccionId),
+      createdAt: Value(createdAt),
+      procesadaAt: procesadaAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(procesadaAt),
+    );
+  }
+
+  factory CapturaRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CapturaRow(
+      id: serializer.fromJson<int>(json['id']),
+      canal: serializer.fromJson<String>(json['canal']),
+      origen: serializer.fromJson<String>(json['origen']),
+      messageIdExterno: serializer.fromJson<String?>(json['messageIdExterno']),
+      textoCrudo: serializer.fromJson<String?>(json['textoCrudo']),
+      adjuntoPath: serializer.fromJson<String?>(json['adjuntoPath']),
+      estado: serializer.fromJson<String>(json['estado']),
+      propuestaJson: serializer.fromJson<String?>(json['propuestaJson']),
+      errorDetalle: serializer.fromJson<String?>(json['errorDetalle']),
+      transaccionId: serializer.fromJson<int?>(json['transaccionId']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      procesadaAt: serializer.fromJson<int?>(json['procesadaAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'canal': serializer.toJson<String>(canal),
+      'origen': serializer.toJson<String>(origen),
+      'messageIdExterno': serializer.toJson<String?>(messageIdExterno),
+      'textoCrudo': serializer.toJson<String?>(textoCrudo),
+      'adjuntoPath': serializer.toJson<String?>(adjuntoPath),
+      'estado': serializer.toJson<String>(estado),
+      'propuestaJson': serializer.toJson<String?>(propuestaJson),
+      'errorDetalle': serializer.toJson<String?>(errorDetalle),
+      'transaccionId': serializer.toJson<int?>(transaccionId),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'procesadaAt': serializer.toJson<int?>(procesadaAt),
+    };
+  }
+
+  CapturaRow copyWith({
+    int? id,
+    String? canal,
+    String? origen,
+    Value<String?> messageIdExterno = const Value.absent(),
+    Value<String?> textoCrudo = const Value.absent(),
+    Value<String?> adjuntoPath = const Value.absent(),
+    String? estado,
+    Value<String?> propuestaJson = const Value.absent(),
+    Value<String?> errorDetalle = const Value.absent(),
+    Value<int?> transaccionId = const Value.absent(),
+    int? createdAt,
+    Value<int?> procesadaAt = const Value.absent(),
+  }) => CapturaRow(
+    id: id ?? this.id,
+    canal: canal ?? this.canal,
+    origen: origen ?? this.origen,
+    messageIdExterno: messageIdExterno.present
+        ? messageIdExterno.value
+        : this.messageIdExterno,
+    textoCrudo: textoCrudo.present ? textoCrudo.value : this.textoCrudo,
+    adjuntoPath: adjuntoPath.present ? adjuntoPath.value : this.adjuntoPath,
+    estado: estado ?? this.estado,
+    propuestaJson: propuestaJson.present
+        ? propuestaJson.value
+        : this.propuestaJson,
+    errorDetalle: errorDetalle.present ? errorDetalle.value : this.errorDetalle,
+    transaccionId: transaccionId.present
+        ? transaccionId.value
+        : this.transaccionId,
+    createdAt: createdAt ?? this.createdAt,
+    procesadaAt: procesadaAt.present ? procesadaAt.value : this.procesadaAt,
+  );
+  CapturaRow copyWithCompanion(CapturaEntranteCompanion data) {
+    return CapturaRow(
+      id: data.id.present ? data.id.value : this.id,
+      canal: data.canal.present ? data.canal.value : this.canal,
+      origen: data.origen.present ? data.origen.value : this.origen,
+      messageIdExterno: data.messageIdExterno.present
+          ? data.messageIdExterno.value
+          : this.messageIdExterno,
+      textoCrudo: data.textoCrudo.present
+          ? data.textoCrudo.value
+          : this.textoCrudo,
+      adjuntoPath: data.adjuntoPath.present
+          ? data.adjuntoPath.value
+          : this.adjuntoPath,
+      estado: data.estado.present ? data.estado.value : this.estado,
+      propuestaJson: data.propuestaJson.present
+          ? data.propuestaJson.value
+          : this.propuestaJson,
+      errorDetalle: data.errorDetalle.present
+          ? data.errorDetalle.value
+          : this.errorDetalle,
+      transaccionId: data.transaccionId.present
+          ? data.transaccionId.value
+          : this.transaccionId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      procesadaAt: data.procesadaAt.present
+          ? data.procesadaAt.value
+          : this.procesadaAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CapturaRow(')
+          ..write('id: $id, ')
+          ..write('canal: $canal, ')
+          ..write('origen: $origen, ')
+          ..write('messageIdExterno: $messageIdExterno, ')
+          ..write('textoCrudo: $textoCrudo, ')
+          ..write('adjuntoPath: $adjuntoPath, ')
+          ..write('estado: $estado, ')
+          ..write('propuestaJson: $propuestaJson, ')
+          ..write('errorDetalle: $errorDetalle, ')
+          ..write('transaccionId: $transaccionId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('procesadaAt: $procesadaAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    canal,
+    origen,
+    messageIdExterno,
+    textoCrudo,
+    adjuntoPath,
+    estado,
+    propuestaJson,
+    errorDetalle,
+    transaccionId,
+    createdAt,
+    procesadaAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CapturaRow &&
+          other.id == this.id &&
+          other.canal == this.canal &&
+          other.origen == this.origen &&
+          other.messageIdExterno == this.messageIdExterno &&
+          other.textoCrudo == this.textoCrudo &&
+          other.adjuntoPath == this.adjuntoPath &&
+          other.estado == this.estado &&
+          other.propuestaJson == this.propuestaJson &&
+          other.errorDetalle == this.errorDetalle &&
+          other.transaccionId == this.transaccionId &&
+          other.createdAt == this.createdAt &&
+          other.procesadaAt == this.procesadaAt);
+}
+
+class CapturaEntranteCompanion extends UpdateCompanion<CapturaRow> {
+  final Value<int> id;
+  final Value<String> canal;
+  final Value<String> origen;
+  final Value<String?> messageIdExterno;
+  final Value<String?> textoCrudo;
+  final Value<String?> adjuntoPath;
+  final Value<String> estado;
+  final Value<String?> propuestaJson;
+  final Value<String?> errorDetalle;
+  final Value<int?> transaccionId;
+  final Value<int> createdAt;
+  final Value<int?> procesadaAt;
+  const CapturaEntranteCompanion({
+    this.id = const Value.absent(),
+    this.canal = const Value.absent(),
+    this.origen = const Value.absent(),
+    this.messageIdExterno = const Value.absent(),
+    this.textoCrudo = const Value.absent(),
+    this.adjuntoPath = const Value.absent(),
+    this.estado = const Value.absent(),
+    this.propuestaJson = const Value.absent(),
+    this.errorDetalle = const Value.absent(),
+    this.transaccionId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.procesadaAt = const Value.absent(),
+  });
+  CapturaEntranteCompanion.insert({
+    this.id = const Value.absent(),
+    required String canal,
+    required String origen,
+    this.messageIdExterno = const Value.absent(),
+    this.textoCrudo = const Value.absent(),
+    this.adjuntoPath = const Value.absent(),
+    this.estado = const Value.absent(),
+    this.propuestaJson = const Value.absent(),
+    this.errorDetalle = const Value.absent(),
+    this.transaccionId = const Value.absent(),
+    required int createdAt,
+    this.procesadaAt = const Value.absent(),
+  }) : canal = Value(canal),
+       origen = Value(origen),
+       createdAt = Value(createdAt);
+  static Insertable<CapturaRow> custom({
+    Expression<int>? id,
+    Expression<String>? canal,
+    Expression<String>? origen,
+    Expression<String>? messageIdExterno,
+    Expression<String>? textoCrudo,
+    Expression<String>? adjuntoPath,
+    Expression<String>? estado,
+    Expression<String>? propuestaJson,
+    Expression<String>? errorDetalle,
+    Expression<int>? transaccionId,
+    Expression<int>? createdAt,
+    Expression<int>? procesadaAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (canal != null) 'canal': canal,
+      if (origen != null) 'origen': origen,
+      if (messageIdExterno != null) 'message_id_externo': messageIdExterno,
+      if (textoCrudo != null) 'texto_crudo': textoCrudo,
+      if (adjuntoPath != null) 'adjunto_path': adjuntoPath,
+      if (estado != null) 'estado': estado,
+      if (propuestaJson != null) 'propuesta_json': propuestaJson,
+      if (errorDetalle != null) 'error_detalle': errorDetalle,
+      if (transaccionId != null) 'transaccion_id': transaccionId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (procesadaAt != null) 'procesada_at': procesadaAt,
+    });
+  }
+
+  CapturaEntranteCompanion copyWith({
+    Value<int>? id,
+    Value<String>? canal,
+    Value<String>? origen,
+    Value<String?>? messageIdExterno,
+    Value<String?>? textoCrudo,
+    Value<String?>? adjuntoPath,
+    Value<String>? estado,
+    Value<String?>? propuestaJson,
+    Value<String?>? errorDetalle,
+    Value<int?>? transaccionId,
+    Value<int>? createdAt,
+    Value<int?>? procesadaAt,
+  }) {
+    return CapturaEntranteCompanion(
+      id: id ?? this.id,
+      canal: canal ?? this.canal,
+      origen: origen ?? this.origen,
+      messageIdExterno: messageIdExterno ?? this.messageIdExterno,
+      textoCrudo: textoCrudo ?? this.textoCrudo,
+      adjuntoPath: adjuntoPath ?? this.adjuntoPath,
+      estado: estado ?? this.estado,
+      propuestaJson: propuestaJson ?? this.propuestaJson,
+      errorDetalle: errorDetalle ?? this.errorDetalle,
+      transaccionId: transaccionId ?? this.transaccionId,
+      createdAt: createdAt ?? this.createdAt,
+      procesadaAt: procesadaAt ?? this.procesadaAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (canal.present) {
+      map['canal'] = Variable<String>(canal.value);
+    }
+    if (origen.present) {
+      map['origen'] = Variable<String>(origen.value);
+    }
+    if (messageIdExterno.present) {
+      map['message_id_externo'] = Variable<String>(messageIdExterno.value);
+    }
+    if (textoCrudo.present) {
+      map['texto_crudo'] = Variable<String>(textoCrudo.value);
+    }
+    if (adjuntoPath.present) {
+      map['adjunto_path'] = Variable<String>(adjuntoPath.value);
+    }
+    if (estado.present) {
+      map['estado'] = Variable<String>(estado.value);
+    }
+    if (propuestaJson.present) {
+      map['propuesta_json'] = Variable<String>(propuestaJson.value);
+    }
+    if (errorDetalle.present) {
+      map['error_detalle'] = Variable<String>(errorDetalle.value);
+    }
+    if (transaccionId.present) {
+      map['transaccion_id'] = Variable<int>(transaccionId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (procesadaAt.present) {
+      map['procesada_at'] = Variable<int>(procesadaAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CapturaEntranteCompanion(')
+          ..write('id: $id, ')
+          ..write('canal: $canal, ')
+          ..write('origen: $origen, ')
+          ..write('messageIdExterno: $messageIdExterno, ')
+          ..write('textoCrudo: $textoCrudo, ')
+          ..write('adjuntoPath: $adjuntoPath, ')
+          ..write('estado: $estado, ')
+          ..write('propuestaJson: $propuestaJson, ')
+          ..write('errorDetalle: $errorDetalle, ')
+          ..write('transaccionId: $transaccionId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('procesadaAt: $procesadaAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4983,6 +5722,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $TransaccionEtiquetasTable(this);
   late final $TasasCambioTable tasasCambio = $TasasCambioTable(this);
   late final $ConfiguracionTable configuracion = $ConfiguracionTable(this);
+  late final $CapturaEntranteTable capturaEntrante = $CapturaEntranteTable(
+    this,
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4997,6 +5739,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transaccionEtiquetas,
     tasasCambio,
     configuracion,
+    capturaEntrante,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7305,6 +8048,26 @@ final class $$TransaccionesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$CapturaEntranteTable, List<CapturaRow>>
+  _capturaEntranteRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.capturaEntrante,
+    aliasName: 'transacciones__id__captura_entrante__transaccion_id',
+  );
+
+  $$CapturaEntranteTableProcessedTableManager get capturaEntranteRefs {
+    final manager = $$CapturaEntranteTableTableManager(
+      $_db,
+      $_db.capturaEntrante,
+    ).filter((f) => f.transaccionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _capturaEntranteRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TransaccionesTableFilterComposer
@@ -7547,6 +8310,31 @@ class $$TransaccionesTableFilterComposer
           }) => $$TransaccionEtiquetasTableFilterComposer(
             $db: $db,
             $table: $db.transaccionEtiquetas,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> capturaEntranteRefs(
+    Expression<bool> Function($$CapturaEntranteTableFilterComposer f) f,
+  ) {
+    final $$CapturaEntranteTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.capturaEntrante,
+      getReferencedColumn: (t) => t.transaccionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturaEntranteTableFilterComposer(
+            $db: $db,
+            $table: $db.capturaEntrante,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7988,6 +8776,31 @@ class $$TransaccionesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> capturaEntranteRefs<T extends Object>(
+    Expression<T> Function($$CapturaEntranteTableAnnotationComposer a) f,
+  ) {
+    final $$CapturaEntranteTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.capturaEntrante,
+      getReferencedColumn: (t) => t.transaccionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturaEntranteTableAnnotationComposer(
+            $db: $db,
+            $table: $db.capturaEntrante,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TransaccionesTableTableManager
@@ -8011,6 +8824,7 @@ class $$TransaccionesTableTableManager
             bool reciboId,
             bool recibosRefs,
             bool transaccionEtiquetasRefs,
+            bool capturaEntranteRefs,
           })
         > {
   $$TransaccionesTableTableManager(_$AppDatabase db, $TransaccionesTable table)
@@ -8129,12 +8943,14 @@ class $$TransaccionesTableTableManager
                 reciboId = false,
                 recibosRefs = false,
                 transaccionEtiquetasRefs = false,
+                capturaEntranteRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (recibosRefs) db.recibos,
                     if (transaccionEtiquetasRefs) db.transaccionEtiquetas,
+                    if (capturaEntranteRefs) db.capturaEntrante,
                   ],
                   addJoins:
                       <
@@ -8252,6 +9068,26 @@ class $$TransaccionesTableTableManager
                           referencedColumn: 'transaccion_id',
                           typedResults: items,
                         ),
+                      if (capturaEntranteRefs)
+                        await $_getPrefetchedDataByColumns<
+                          TransaccionRow,
+                          $TransaccionesTable,
+                          CapturaRow,
+                          $CapturaEntranteTable
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TransaccionesTableReferences
+                              ._capturaEntranteRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TransaccionesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).capturaEntranteRefs,
+                          currentColumn: 'id',
+                          referencedColumn: 'transaccion_id',
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8280,6 +9116,7 @@ typedef $$TransaccionesTableProcessedTableManager =
         bool reciboId,
         bool recibosRefs,
         bool transaccionEtiquetasRefs,
+        bool capturaEntranteRefs,
       })
     >;
 typedef $$TransaccionEtiquetasTableCreateCompanionBuilder =
@@ -9067,6 +9904,467 @@ typedef $$ConfiguracionTableProcessedTableManager =
       ConfiguracionRow,
       PrefetchHooks Function()
     >;
+typedef $$CapturaEntranteTableCreateCompanionBuilder =
+    CapturaEntranteCompanion Function({
+      Value<int> id,
+      required String canal,
+      required String origen,
+      Value<String?> messageIdExterno,
+      Value<String?> textoCrudo,
+      Value<String?> adjuntoPath,
+      Value<String> estado,
+      Value<String?> propuestaJson,
+      Value<String?> errorDetalle,
+      Value<int?> transaccionId,
+      required int createdAt,
+      Value<int?> procesadaAt,
+    });
+typedef $$CapturaEntranteTableUpdateCompanionBuilder =
+    CapturaEntranteCompanion Function({
+      Value<int> id,
+      Value<String> canal,
+      Value<String> origen,
+      Value<String?> messageIdExterno,
+      Value<String?> textoCrudo,
+      Value<String?> adjuntoPath,
+      Value<String> estado,
+      Value<String?> propuestaJson,
+      Value<String?> errorDetalle,
+      Value<int?> transaccionId,
+      Value<int> createdAt,
+      Value<int?> procesadaAt,
+    });
+
+final class $$CapturaEntranteTableReferences
+    extends BaseReferences<_$AppDatabase, $CapturaEntranteTable, CapturaRow> {
+  $$CapturaEntranteTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $TransaccionesTable _transaccionIdTable(_$AppDatabase db) => db
+      .transacciones
+      .createAlias('captura_entrante__transaccion_id__transacciones__id');
+
+  $$TransaccionesTableProcessedTableManager? get transaccionId {
+    final $_column = $_itemColumn<int>('transaccion_id');
+    if ($_column == null) return null;
+    final manager = $$TransaccionesTableTableManager(
+      $_db,
+      $_db.transacciones,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_transaccionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$CapturaEntranteTableFilterComposer
+    extends Composer<_$AppDatabase, $CapturaEntranteTable> {
+  $$CapturaEntranteTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get canal => $composableBuilder(
+    column: $table.canal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get origen => $composableBuilder(
+    column: $table.origen,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get messageIdExterno => $composableBuilder(
+    column: $table.messageIdExterno,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get textoCrudo => $composableBuilder(
+    column: $table.textoCrudo,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get adjuntoPath => $composableBuilder(
+    column: $table.adjuntoPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get estado => $composableBuilder(
+    column: $table.estado,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get propuestaJson => $composableBuilder(
+    column: $table.propuestaJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorDetalle => $composableBuilder(
+    column: $table.errorDetalle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get procesadaAt => $composableBuilder(
+    column: $table.procesadaAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$TransaccionesTableFilterComposer get transaccionId {
+    final $$TransaccionesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transaccionId,
+      referencedTable: $db.transacciones,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransaccionesTableFilterComposer(
+            $db: $db,
+            $table: $db.transacciones,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CapturaEntranteTableOrderingComposer
+    extends Composer<_$AppDatabase, $CapturaEntranteTable> {
+  $$CapturaEntranteTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get canal => $composableBuilder(
+    column: $table.canal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get origen => $composableBuilder(
+    column: $table.origen,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get messageIdExterno => $composableBuilder(
+    column: $table.messageIdExterno,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get textoCrudo => $composableBuilder(
+    column: $table.textoCrudo,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get adjuntoPath => $composableBuilder(
+    column: $table.adjuntoPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get estado => $composableBuilder(
+    column: $table.estado,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get propuestaJson => $composableBuilder(
+    column: $table.propuestaJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorDetalle => $composableBuilder(
+    column: $table.errorDetalle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get procesadaAt => $composableBuilder(
+    column: $table.procesadaAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$TransaccionesTableOrderingComposer get transaccionId {
+    final $$TransaccionesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transaccionId,
+      referencedTable: $db.transacciones,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransaccionesTableOrderingComposer(
+            $db: $db,
+            $table: $db.transacciones,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CapturaEntranteTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CapturaEntranteTable> {
+  $$CapturaEntranteTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get canal =>
+      $composableBuilder(column: $table.canal, builder: (column) => column);
+
+  GeneratedColumn<String> get origen =>
+      $composableBuilder(column: $table.origen, builder: (column) => column);
+
+  GeneratedColumn<String> get messageIdExterno => $composableBuilder(
+    column: $table.messageIdExterno,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get textoCrudo => $composableBuilder(
+    column: $table.textoCrudo,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get adjuntoPath => $composableBuilder(
+    column: $table.adjuntoPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get estado =>
+      $composableBuilder(column: $table.estado, builder: (column) => column);
+
+  GeneratedColumn<String> get propuestaJson => $composableBuilder(
+    column: $table.propuestaJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get errorDetalle => $composableBuilder(
+    column: $table.errorDetalle,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get procesadaAt => $composableBuilder(
+    column: $table.procesadaAt,
+    builder: (column) => column,
+  );
+
+  $$TransaccionesTableAnnotationComposer get transaccionId {
+    final $$TransaccionesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.transaccionId,
+      referencedTable: $db.transacciones,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransaccionesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.transacciones,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$CapturaEntranteTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CapturaEntranteTable,
+          CapturaRow,
+          $$CapturaEntranteTableFilterComposer,
+          $$CapturaEntranteTableOrderingComposer,
+          $$CapturaEntranteTableAnnotationComposer,
+          $$CapturaEntranteTableCreateCompanionBuilder,
+          $$CapturaEntranteTableUpdateCompanionBuilder,
+          (CapturaRow, $$CapturaEntranteTableReferences),
+          CapturaRow,
+          PrefetchHooks Function({bool transaccionId})
+        > {
+  $$CapturaEntranteTableTableManager(
+    _$AppDatabase db,
+    $CapturaEntranteTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CapturaEntranteTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CapturaEntranteTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CapturaEntranteTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> canal = const Value.absent(),
+                Value<String> origen = const Value.absent(),
+                Value<String?> messageIdExterno = const Value.absent(),
+                Value<String?> textoCrudo = const Value.absent(),
+                Value<String?> adjuntoPath = const Value.absent(),
+                Value<String> estado = const Value.absent(),
+                Value<String?> propuestaJson = const Value.absent(),
+                Value<String?> errorDetalle = const Value.absent(),
+                Value<int?> transaccionId = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int?> procesadaAt = const Value.absent(),
+              }) => CapturaEntranteCompanion(
+                id: id,
+                canal: canal,
+                origen: origen,
+                messageIdExterno: messageIdExterno,
+                textoCrudo: textoCrudo,
+                adjuntoPath: adjuntoPath,
+                estado: estado,
+                propuestaJson: propuestaJson,
+                errorDetalle: errorDetalle,
+                transaccionId: transaccionId,
+                createdAt: createdAt,
+                procesadaAt: procesadaAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String canal,
+                required String origen,
+                Value<String?> messageIdExterno = const Value.absent(),
+                Value<String?> textoCrudo = const Value.absent(),
+                Value<String?> adjuntoPath = const Value.absent(),
+                Value<String> estado = const Value.absent(),
+                Value<String?> propuestaJson = const Value.absent(),
+                Value<String?> errorDetalle = const Value.absent(),
+                Value<int?> transaccionId = const Value.absent(),
+                required int createdAt,
+                Value<int?> procesadaAt = const Value.absent(),
+              }) => CapturaEntranteCompanion.insert(
+                id: id,
+                canal: canal,
+                origen: origen,
+                messageIdExterno: messageIdExterno,
+                textoCrudo: textoCrudo,
+                adjuntoPath: adjuntoPath,
+                estado: estado,
+                propuestaJson: propuestaJson,
+                errorDetalle: errorDetalle,
+                transaccionId: transaccionId,
+                createdAt: createdAt,
+                procesadaAt: procesadaAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CapturaEntranteTable, CapturaRow>(table),
+                  $$CapturaEntranteTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({transaccionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (transaccionId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.transaccionId,
+                        referencedTable: $$CapturaEntranteTableReferences
+                            ._transaccionIdTable(db),
+                        referencedColumn: $$CapturaEntranteTableReferences
+                            ._transaccionIdTable(db)
+                            .id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$CapturaEntranteTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CapturaEntranteTable,
+      CapturaRow,
+      $$CapturaEntranteTableFilterComposer,
+      $$CapturaEntranteTableOrderingComposer,
+      $$CapturaEntranteTableAnnotationComposer,
+      $$CapturaEntranteTableCreateCompanionBuilder,
+      $$CapturaEntranteTableUpdateCompanionBuilder,
+      (CapturaRow, $$CapturaEntranteTableReferences),
+      CapturaRow,
+      PrefetchHooks Function({bool transaccionId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9089,4 +10387,6 @@ class $AppDatabaseManager {
       $$TasasCambioTableTableManager(_db, _db.tasasCambio);
   $$ConfiguracionTableTableManager get configuracion =>
       $$ConfiguracionTableTableManager(_db, _db.configuracion);
+  $$CapturaEntranteTableTableManager get capturaEntrante =>
+      $$CapturaEntranteTableTableManager(_db, _db.capturaEntrante);
 }

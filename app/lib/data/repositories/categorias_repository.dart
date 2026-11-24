@@ -32,6 +32,14 @@ class CategoriasRepository {
     );
   }
 
+  Future<List<Subcategoria>> obtenerSubcategorias() async {
+    final filas = await (_db.select(
+      _db.subcategorias,
+    )..where((t) => t.eliminadoEn.isNull()))
+        .get();
+    return filas.map(_subcategoriaADominio).toList();
+  }
+
   Future<List<Categoria>> obtenerCategorias() async {
     final filas = await (_db.select(
       _db.categorias,

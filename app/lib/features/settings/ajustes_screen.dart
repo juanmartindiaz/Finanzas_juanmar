@@ -60,6 +60,50 @@ class AjustesScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              children: <Widget>[
+                ListTile(
+                  leading: const Icon(Icons.inbox_outlined),
+                  title: const Text('Bandeja de capturas'),
+                  subtitle: const Text(
+                    'Lo que llega del bot o del simulador, antes de confirmar.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/bandeja'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.hub_outlined),
+                  title: const Text('Canal bot'),
+                  subtitle: const Text(
+                    'Token, puerto y MOCK_BOT.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/ajustes/canal-bot'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Capturas'),
+                  subtitle: const Text('Cuenta por defecto para las capturas.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/ajustes/capturas'),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.smart_toy_outlined),
+                  title: const Text('Avanzado: simulador de bot'),
+                  subtitle: const Text(
+                    'Envía texto, imagen o audio al servidor local.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/ajustes/simulador'),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
           Card(
             child: ListTile(

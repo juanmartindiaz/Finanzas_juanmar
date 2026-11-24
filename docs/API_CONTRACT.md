@@ -1,8 +1,16 @@
-# Contrato de API — App ↔ Bot (v1)
+# Contrato de API — App ↔ Bot (v2 · capturas)
 
-**Fase 0: nada de esto está implementado.** No hay servidores escuchando, ni rutas, ni token, ni modo mock. Este documento es el acuerdo que se implementará en la **Fase 2** (captura) y se ampliará en la **Fase 4** (reportes). Sirve para que las dos partes se construyan por separado sin sorpresas.
+**Estado: Fase 2, parte 1 (2026-11-24).** La app expone el servidor local de capturas en
+`127.0.0.1:8787` en esta misma entrega; el **bot real de WhatsApp escribe en el Prompt 3**. Las
+rutas de cola de salida (`/outbox`, `/ack`) y el servidor del bot en `:8788` quedan documentadas
+como **pendientes** y no se implementan todavía.
 
-Los dos procesos corren en el mismo teléfono Android: la **app Flutter** y el **bot Node.js** de WhatsApp. Este contrato fija cómo se hablan.
+Este contrato reemplaza al diseño `/api/v1/inbox` de la Fase 0, que **nunca se implementó**.
+Las rutas actuales son las aprobadas en el Prompt 2 (Opción A: rutas exactas, sin prefijo de
+versión en la ruta). Ver §13 para la política de cambios incompatibles.
+
+Los dos procesos corren en el mismo teléfono Android: la **app Flutter** y el **bot Node.js**
+de WhatsApp. La app es la dueña de los datos y de las reglas; el bot solo transporta mensajes.
 
 ---
 
@@ -11,33 +19,36 @@ Los dos procesos corren en el mismo teléfono Android: la **app Flutter** y el *
 | Principio | Regla |
 |---|---|
 | Solo loopback | Se escucha en `127.0.0.1`; jamás en `0.0.0.0` ni en una IP de la red |
-| La app manda | El bot no decide montos ni categorías: entrega, avisa y espera |
-| Todo autenticado | `X-Bot-Token` obligatorio en cada llamada, salvo `GET /health` en ambos lados (solo informa estado, no expone datos) |
-| JSON siempre | Cuerpo y respuesta en JSON UTF-8, `Content-Type: application/json` |
+| La app manda | El bot no decide montos ni categorías: entrega el mensaje y la app propone; **el usuario confirma** |
+| Nada automático | Una captura **nunca** crea una transacción por sí sola ([DECISIONS.md](DECISIONS.md), ADR-031) |
+| Todo autenticado | `X-Bot-Token` obligatorio en cada llamada, salvo `GET /api/salud` |
+| JSON siempre | Cuerpo y respuesta en JSON UTF-8, salvo los archivos, que van en `multipart/form-data` |
 | Errores uniformes | Un único formato de error, siempre con `codigo` y `mensaje` |
-| Idempotente | Reenviar el mismo mensaje no duplica capturas |
-| Versionado | Todas las rutas cuelgan de `/api/v1` |
-| Sin estado compartido | El bot puede reiniciarse en cualquier momento sin perder datos de finanzas |
+| Idempotente | Reenviar el mismo `message_id` no duplica capturas |
+| Sin estado compartido | El bot puede reiniciarse sin perder datos de finanzas |
+| Sin internet | Todo ocurre en el teléfono; el contrato no requiere red de salida |
 
 ---
 
 ## 2. Direcciones y puertos
 
-| Servidor | Escucha en | Quién le habla | Para qué |
+| Servidor | Escucha en | Quién le habla | Estado |
 |---|---|---|---|
-| App Flutter | `http://127.0.0.1:8787` | El bot | Entregar mensajes, recoger la cola de salida |
-| Bot Node.js | `http://127.0.0.1:8788` | La app | Saber estado de WhatsApp, enviar mensajes, configurar horarios |
+| App Flutter | `http://127.0.0.1:8787` (configurable en Ajustes) | El bot / el simulador | **Implementado en Fase 2.1–2.2** |
+| Bot Node.js | `http://127.0.0.1:8788` | La app | Pendiente (Prompt 3) |
 
-Ambos puertos son **fijos** (no se negocian). Si un puerto está ocupado, el proceso que arranca segundo falla con un mensaje claro en lugar de cambiar de puerto en silencio: dos puertos fijos hacen que la depuración sea predecible.
+El puerto de la app se guarda en `configuracion` (clave `bot_puerto_app`) y vale **8787** por
+defecto. Si está ocupado, la app lo informa en Ajustes y sigue funcionando sin servidor (el
+resto de la app no depende de él).
 
 ---
 
 ## 3. Autenticación
 
-Cada petición lleva:
+Cada petición protegida lleva:
 
 ```http
-POST /api/v1/inbox HTTP/1.1
+POST /api/capturas/texto HTTP/1.1
 Host: 127.0.0.1:8787
 Content-Type: application/json
 X-Bot-Token: 7f3c9a1e5b2d48c6a0f1e9d7c3b5a8f2
@@ -46,14 +57,14 @@ X-Bot-Token: 7f3c9a1e5b2d48c6a0f1e9d7c3b5a8f2
 | Aspecto | Definición |
 |---|---|
 | Cabecera | `X-Bot-Token` |
-| Valor | Cadena aleatoria de al menos 32 caracteres |
-| Comparación | **Tiempo constante** (no comparar con `==`; no salir antes al primer byte distinto) |
-| Falta la cabecera | `401` `NO_AUTORIZADO` |
-| Token incorrecto | `401` `NO_AUTORIZADO` (mismo mensaje que el caso anterior, a propósito) |
-| Token vacío o muy corto | `401` `NO_AUTORIZADO` |
-| Rotación | El usuario puede regenerar el token en Ajustes; la app y el bot se actualizan a la vez |
+| Generación | La app genera una cadena aleatoria de 64 caracteres hexadecimales en el primer arranque (clave `bot_token`) |
+| Dónde se ve | Ajustes → **Canal bot**: se muestra, se copia y se puede regenerar |
+| Comparación | **Tiempo constante** (no comparar con `==`) |
+| Falta la cabecera / token incorrecto | `401` `NO_AUTORIZADO` (mismo mensaje, a propósito) |
+| Rotación | Al regenerar, el bot copiado deja de funcionar hasta que el usuario actualice el suyo |
+| Transporte | El token **no** viaja en la URL ni en el cuerpo |
 
-Respuesta de error de autenticación:
+Respuesta de error:
 
 ```json
 {
@@ -64,22 +75,21 @@ Respuesta de error de autenticación:
 }
 ```
 
-El token **no** viaja en la URL ni en el cuerpo, para que no quede en registros de texto.
-
-**Única excepción:** `GET /health` en los dos servidores no exige token. Devuelve solo si el proceso está vivo y listo, sin nombres, montos ni configuración. Todo lo demás —incluido `GET /api/v1/config`— responde `401` sin token válido.
+**Única excepción:** `GET /api/salud` no exige token. No revela datos: solo si el servidor está
+vivo y la versión de la app.
 
 ---
 
 ## 4. Formato de errores
 
-Todo error usa exactamente esta forma:
+Todo error usa exactamente esta forma (igual que en el contrato anterior):
 
 ```json
 {
   "error": {
     "codigo": "PAYLOAD_INVALIDO",
-    "mensaje": "El campo 'tipo' debe ser texto, audio o imagen.",
-    "campo": "tipo"
+    "mensaje": "El campo 'texto' es obligatorio.",
+    "campo": "texto"
   }
 }
 ```
@@ -88,16 +98,31 @@ Todo error usa exactamente esta forma:
 
 | Código | HTTP | Cuándo | Qué debe hacer el cliente |
 |---|---|---|---|
-| `NO_AUTORIZADO` | 401 | Token ausente o incorrecto | Revisar configuración; no reintentar en bucle |
-| `PAYLOAD_INVALIDO` | 400 | JSON mal formado o campo obligatorio ausente/tipo erróneo | Corregir la petición; reintentar no sirve |
-| `DEMASIADO_GRANDE` | 413 | Cuerpo sobre el límite (§6) | Reducir imagen/audio o trocear |
-| `NO_ENCONTRADO` | 404 | Ruta o `id` inexistente | Verificar la ruta y el id |
-| `CONFLICTO` | 409 | Estado incompatible (p. ej. `ack` doble sobre un mensaje ya entregado) | Leer el mensaje y decidir |
-| `NO_DISPONIBLE` | 503 | App cerrada, WhatsApp desconectado o base ocupada | Reintentar con espera creciente |
-| `LIMITE_EXCEDIDO` | 429 | Demasiadas peticiones en poco tiempo | Esperar y reintentar |
+| `NO_AUTORIZADO` | 401 | Token ausente o incorrecto | Corregir la configuración; no reintentar en bucle |
+| `PAYLOAD_INVALIDO` | 400 | JSON mal formado, campo obligatorio ausente o valor fuera de rango | Corregir; reintentar no sirve |
+| `DEMASIADO_GRANDE` | 413 | Archivo sobre 8 MB o cuerpo sobre el límite (§6) | Reducir el archivo |
+| `NO_ENCONTRADO` | 404 | Ruta inexistente o `id` de captura inexistente | Verificar la ruta |
+| `CONFLICTO` | 409 | `message_id` ya usado (duplicado) | **No reintentar**: la captura ya existe; usar el `captura_id` devuelto |
+| `NO_DISPONIBLE` | 503 | La app está arrancando o la base no está lista | Reintentar con espera creciente |
 | `ERROR_INTERNO` | 500 | Fallo inesperado | Reintentar una vez; si persiste, reportar |
 
-Regla de reintentos (lado bot): esperar 2 s, 5 s, 15 s, 30 s, 60 s; nunca reintentar `400`, `401`, `404` ni `413`.
+Regla de reintentos (lado bot): esperar 2 s, 5 s, 15 s, 30 s, 60 s; **nunca** reintentar
+`400`, `401`, `404`, `409` ni `413`.
+
+### 4.1 Respuesta de duplicado
+
+Además del error estándar, el `409` incluye el id de la captura ya existente para que el bot
+pueda responder al usuario sin adivinar (decisión D3):
+
+```json
+{
+  "error": {
+    "codigo": "CONFLICTO",
+    "mensaje": "El message_id ya fue procesado."
+  },
+  "captura_id": 41
+}
+```
 
 ---
 
@@ -105,15 +130,18 @@ Regla de reintentos (lado bot): esperar 2 s, 5 s, 15 s, 30 s, 60 s; nunca reinte
 
 | Dato | Formato | Ejemplo |
 |---|---|---|
-| Fechas de calendario | `"YYYY-MM-DD"` | `"2026-11-23"` |
+| Fechas de calendario | `"YYYY-MM-DD"` | `"2026-11-24"` |
 | Instantes | entero, **epoch en milisegundos** | `1795451760000` |
 | Dinero | entero, **centavos** (nunca decimal) | `1850000` = $18.500 COP |
 | Moneda | ISO 4217, 3 letras mayúsculas | `"COP"`, `"USD"` |
 | Booleanos | `true` / `false` | `true` |
 | Ids | entero positivo | `41` |
-| Texto libre | UTF-8, sin límite interno distinto al de §6 | `"Almuerzo 18.500"` |
+| `canal` | `texto`, `audio`, `foto` o `app` | `"foto"` |
+| `origen` | `mock`, `bot` o `manual` | `"bot"` |
+| `estado` de captura | `pendiente`, `procesando`, `listo`, `confirmado`, `descartado`, `error` | `"listo"` |
+| Texto libre | UTF-8, máximo 4.000 caracteres | `"Almuerzo 18.500"` |
 
-Los nombres de campos van en español; los identificadores de código (clases, funciones, rutas internas) en inglés o neutro.
+Los nombres de campos van en español; los identificadores de código, en inglés o neutro.
 
 ---
 
@@ -121,431 +149,297 @@ Los nombres de campos van en español; los identificadores de código (clases, f
 
 | Límite | Valor | Motivo |
 |---|---|---|
-| Tamaño máximo del cuerpo | 8 MB | Un audio o una foto de WhatsApp caben sin llenar la memoria del teléfono |
-| Texto de mensaje | 4.000 caracteres | Más que eso no es un gasto ni un reporte |
-| Imagen | hasta 4 MB tras decodificar base64; JPEG/PNG/WebP | Lo que manda WhatsApp |
-| Audio | hasta 6 MB; OGG/Opus, M4A, MP3 | Notas de voz típicas |
-| Tiempo de espera por petición | 15 s (app y bot) | Antes de eso se responde `NO_DISPONIBLE` |
-| Consultas del bot a `/outbox` | cada 30 s (configurable) | Equilibrio entre rapidez y batería |
-| Tamaño de `/outbox` | máximo 20 mensajes por respuesta | Evita respuestas gigantes |
-| Reintentos automáticos | 5 con espera creciente | Suficiente para que el usuario no intervenga |
+| Tamaño máximo por archivo (foto o audio) | **8 MB** | Cabe un recibo o una nota de voz sin llenar la memoria |
+| Tamaño máximo del cuerpo | 8 MB + cabeceras | Es el mismo límite, medido antes de procesar |
+| Texto del mensaje | 4.000 caracteres | Más que eso no es un gasto |
+| Imagen | JPEG/PNG/WebP | Lo que manda WhatsApp |
+| Audio | OGG/Opus, M4A, MP3, AMR | Notas de voz típicas |
+| Tiempo de espera por petición | 15 s | Antes de eso, papelera y reintento |
+| Timeout del servidor | 30 s por petición | Evita peticiones colgadas |
 
-El límite de cuerpo se valida **antes** de decodificar base64; si el cliente envía 12 MB, se responde `413` sin intentar procesarlo.
+El límite se valida **antes** de escribir el archivo: si llegan 12 MB, se responde `413` y no se
+guarda nada.
 
 ---
 
 ## 7. Idempotencia
 
-El bot identifica cada mensaje entrante con `id_mensaje` (el identificador de WhatsApp).
+El bot identifica cada mensaje con `message_id` (el identificador de WhatsApp). Se guarda en
+`captura_entrante.message_id_externo`, con **índice único parcial** (solo entre no nulos).
 
 | Caso | Comportamiento |
 |---|---|
-| `id_mensaje` nunca visto | Se crea una captura nueva y se responde `202` con `estado: "pendiente_revision"` |
-| `id_mensaje` repetido, misma captura | Se responde `200` con **el mismo** `id_captura` y el mismo `estado`; no se crea nada |
-| `id_mensaje` repetido de un mensaje ignorado | Se responde `200` con el mismo `estado: "ignorado"` |
-| `id_mensaje` repetido con contenido distinto | Se responde `409` `CONFLICTO` (el id ya está usado por otro contenido) |
+| `message_id` nunca visto | Se crea la captura y se responde `201` con `{captura_id, estado}` |
+| `message_id` repetido | Se responde `409 CONFLICTO` con el `captura_id` existente; **no se crea otra captura** |
+| Sin `message_id` | `400 PAYLOAD_INVALIDO` (obligatorio en las rutas del bot) |
+| Captura creada desde la app (manual) | No lleva `message_id` (es `NULL`); la unicidad parcial lo permite |
 
-Así el bot puede reintentar sin miedo cuando se corta la red local o la app está dormida. La app guarda el `id_mensaje` junto a la captura (ver [DATA_MODEL.md](DATA_MODEL.md)).
+Reenviar el mismo mensaje es seguro: el bot puede reintentar tras un corte sin duplicar nada.
 
 ---
 
 ## 8. Endpoints que expone la APP (`127.0.0.1:8787`)
 
-### 8.1 `GET /api/v1/health`
+### 8.1 `GET /api/salud` — sin token
 
-No requiere token, pero no revela nada sensible. Sirve para saber si vale la pena seguir.
-
-**Respuesta 200:**
-
-```json
-{
-  "estado": "ok",
-  "listo": true,
-  "version_app": "0.1.0",
-  "api": "v1",
-  "base_datos": "ok",
-  "modo_mock": false,
-  "hora_servidor": 1795451760000
-}
-```
-
-| Campo | Tipo | Significado |
-|---|---|---|
-| `estado` | texto | `ok`, `iniciando` o `error` |
-| `listo` | booleano | `true` solo si la base de datos abrió y la app está desbloqueada |
-| `version_app` | texto | Versión del APK |
-| `api` | texto | Siempre `"v1"` |
-| `base_datos` | texto | `ok` o `error` |
-| `modo_mock` | booleano | Si el bot simulado está activo |
-| `hora_servidor` | entero | Epoch ms, para detectar relojes desfasados |
-
-Si la app está bloqueada con PIN, `listo` es `false` y las demás rutas responden `503 NO_DISPONIBLE`.
-
-### 8.2 `GET /api/v1/config`
-
-Devuelve lo que el bot necesita saber. **No** devuelve el token (el bot ya lo tiene).
+Sirve para saber si el servidor está vivo. No revela datos.
 
 **Respuesta 200:**
 
 ```json
-{
-  "version": 3,
-  "numero_autorizado": "573001234567",
-  "destinatarios": ["573001234567"],
-  "horarios_reporte": ["07:30", "13:00", "20:30"],
-  "modo_mock": false,
-  "zona_horaria": "America/Bogota",
-  "moneda_base": "COP"
-}
+{ "ok": true, "version": "0.3.0" }
 ```
 
 | Campo | Tipo | Significado |
 |---|---|---|
-| `version` | entero | Sube cada vez que cambia la configuración; el bot la compara |
-| `numero_autorizado` | texto | Único número cuyos mensajes se aceptan |
-| `destinatarios` | lista | A quién se envían reportes |
-| `horarios_reporte` | lista | Horas locales `"HH:MM"` |
-| `modo_mock` | booleano | Si la app simula el bot |
-| `zona_horaria` | texto | Zona IANA del teléfono |
-| `moneda_base` | texto | Siempre `COP` en esta versión |
+| `ok` | booleano | Siempre `true` si el servidor responde |
+| `version` | texto | Versión de la app que corre el servidor |
 
-### 8.3 `POST /api/v1/inbox`
+### 8.2 `POST /api/capturas/texto` — con token
 
-El bot entrega un mensaje entrante. Es la ruta más importante del contrato.
+Recibe un mensaje de texto (escrito por el usuario en WhatsApp y reenviado por el bot, o
+generado por el simulador interno). Crea la captura, corre el **parser en español** y deja la
+propuesta lista para revisión.
 
-**Petición (texto):**
+**Petición:**
 
 ```json
 {
-  "id_mensaje": "wamid.HBgMNTczMDAxMjM0NTY3FQIAEhgg",
-  "remitente": "573001234567",
-  "tipo": "texto",
-  "timestamp": 1795451700000,
-  "texto": "Almuerzo 18.500 efectivo",
-  "archivo_base64": null,
-  "mime": null
-}
-```
-
-**Petición (audio):**
-
-```json
-{
-  "id_mensaje": "wamid.HBgMNTczMDAxMjM0NTY3FQIAEhgh",
-  "remitente": "573001234567",
-  "tipo": "audio",
-  "timestamp": 1795451720000,
-  "texto": null,
-  "archivo_base64": "T2dnUwACAAAAAAAAAAA...",
-  "mime": "audio/ogg"
-}
-```
-
-**Petición (imagen):**
-
-```json
-{
-  "id_mensaje": "wamid.HBgMNTczMDAxMjM0NTY3FQIAEhgi",
-  "remitente": "573001234567",
-  "tipo": "imagen",
-  "timestamp": 1795451740000,
-  "texto": null,
-  "archivo_base64": "/9j/4AAQSkZJRgABAQ...",
-  "mime": "image/jpeg"
+  "message_id": "wamid.HBgMNTczMDAxMjM0NTY3FQIAEhgg",
+  "texto": "gasté 18.500 en mercado",
+  "canal": "texto",
+  "timestamp": 1795451700000
 }
 ```
 
 | Campo | Tipo | Obligatorio | Regla |
 |---|---|---|---|
-| `id_mensaje` | texto | Sí | Único; llave de idempotencia |
-| `remitente` | texto | Sí | Solo dígitos; si no es `numero_autorizado` → `estado: "ignorado"` |
-| `tipo` | texto | Sí | `texto`, `audio` o `imagen` |
+| `message_id` | texto | Sí | 1–200 caracteres; llave de idempotencia |
+| `texto` | texto | Sí | 1–4.000 caracteres |
+| `canal` | texto | Sí | `texto` o `audio` (texto transcrito en una fase posterior) |
 | `timestamp` | entero | Sí | Epoch ms; no puede ser futuro por más de 5 minutos |
-| `texto` | texto o null | Solo si `tipo: "texto"` | 1–4.000 caracteres |
-| `archivo_base64` | texto o null | Solo si `tipo` es audio/imagen | Base64 sin prefijo `data:` |
-| `mime` | texto o null | Solo si hay archivo | `audio/ogg`, `image/jpeg`, etc. |
 
-**Respuesta 202 (captura creada):**
+**Respuesta 201:**
 
 ```json
 {
-  "recibido": true,
-  "id_captura": 41,
-  "estado": "pendiente_revision"
+  "captura_id": 41,
+  "estado": "listo"
 }
 ```
 
-**Respuesta 200 (duplicado o remitente no autorizado):**
+La captura queda con `origen = 'bot'`, `canal = 'texto'`, `estado = 'listo'` y
+`propuesta_json` con tipo, monto, categoría/subcategoría propuestas, etiquetas, cuenta
+propuesta, confianza y campos faltantes. Si el parser no pudo entender algo, la captura queda
+igual en `listo` pero con `confianza` baja y `faltantes`; la app la resalta como "requiere
+revisión".
+
+**Errores:** `400` (falta un campo, texto vacío, timestamp inválido), `401`, `409` (duplicado),
+`413` si el cuerpo excede el límite.
+
+### 8.3 `POST /api/capturas/foto` — con token, `multipart/form-data`
+
+Recibe una foto del recibo. En esta fase **no hay OCR**: el archivo se guarda y la captura
+queda pendiente de revisión manual.
+
+**Campos del formulario:**
+
+| Campo | Tipo | Obligatorio | Regla |
+|---|---|---|---|
+| `message_id` | texto | Sí | Idempotencia |
+| `timestamp` | entero | Sí | Epoch ms |
+| `archivo` | archivo | Sí | JPEG/PNG/WebP, ≤ 8 MB |
+
+**Respuesta 201:**
 
 ```json
-{
-  "recibido": true,
-  "id_captura": 41,
-  "estado": "pendiente_revision"
-}
+{ "captura_id": 42, "estado": "listo" }
 ```
+
+La captura queda `canal = 'foto'`, `origen = 'bot'`, `estado = 'listo'`, `adjunto_path` con la
+ruta relativa dentro de la carpeta privada `capturas/` y `propuesta_json` vacía (el OCR llega
+en la Fase 2.4).
+
+**Errores:** `400` (falta `message_id` o archivo), `401`, `413` (archivo > 8 MB),
+`409` (duplicado).
+
+### 8.4 `POST /api/audio` — con token, `multipart/form-data`
+
+Recibe una nota de voz. En esta fase **no hay transcripción**: el archivo se guarda y la
+captura queda `pendiente`.
+
+**Campos del formulario:**
+
+| Campo | Tipo | Obligatorio | Regla |
+|---|---|---|---|
+| `message_id` | texto | Sí | Idempotencia |
+| `timestamp` | entero | Sí | Epoch ms |
+| `archivo` | archivo | Sí | OGG/Opus, M4A, MP3, AMR, ≤ 8 MB |
+
+**Respuesta 201:**
 
 ```json
-{
-  "recibido": true,
-  "id_captura": null,
-  "estado": "ignorado"
-}
+{ "captura_id": 43, "estado": "pendiente" }
 ```
 
-El bot **no** espera a que el usuario confirme: responde con un acuse corto y la app avisa cuando el gasto está registrado.
+La captura queda `canal = 'audio'`, `origen = 'bot'`, `adjunto_path` con la ruta del archivo y
+sin propuesta (la transcripción offline llega en la Fase 2.5).
 
-### 8.4 `GET /api/v1/outbox`
+**Errores:** `400`, `401`, `413`, `409`.
 
-El bot consulta los mensajes que la app quiere enviar.
+### 8.5 `GET /api/pendientes` — con token
+
+Conteo de capturas que el usuario todavía no atendió, para que el bot decida si avisar por
+WhatsApp.
 
 **Respuesta 200:**
 
 ```json
 {
-  "mensajes": [
-    {
-      "id": 12,
-      "tipo": "texto",
-      "destinatario": "573001234567",
-      "texto": "Hoy gastaste $84.300. Restante de Alimentación: $215.700.",
-      "adjunto_base64": null,
-      "creado_en": 1795451600000
-    },
-    {
-      "id": 13,
-      "tipo": "texto",
-      "destinatario": "573001234567",
-      "texto": "Listo, registré tu gasto de $18.500 en Alimentación.",
-      "adjunto_base64": null,
-      "creado_en": 1795451765000
-    }
-  ]
+  "pendientes": 2,
+  "listos": 1,
+  "total": 3
 }
 ```
 
-| Campo | Tipo | Significado |
-|---|---|---|
-| `id` | entero | Id del mensaje en la cola; se usa para el `ack` |
-| `tipo` | texto | `texto`, `audio` o `imagen` |
-| `destinatario` | texto | Número en formato internacional sin `+` |
-| `texto` | texto | Contenido o pie de foto. Puede ir vacío solo si hay adjunto |
-| `adjunto_base64` | texto o null | Solo para audio/imagen |
-| `creado_en` | entero | Epoch ms |
+`pendientes` = capturas en estado `pendiente` o `procesando`; `listos` = en `listo`; `total` =
+suma de ambos. No incluye confirmadas ni descartadas.
 
-Los mensajes **no** se borran al entregarse: cambian de estado, para poder auditar qué se envió.
+### 8.6 Rutas del contrato anterior (retiradas)
 
-### 8.5 `POST /api/v1/outbox/{id}/ack`
-
-El bot confirma el resultado del envío.
-
-**Petición (éxito):**
-
-```json
-{ "estado": "enviado" }
-```
-
-**Petición (fallo):**
-
-```json
-{
-  "estado": "error",
-  "error": "WhatsApp no esta conectado (socket cerrado)"
-}
-```
-
-**Respuesta 200:**
-
-```json
-{ "ok": true, "id": 12, "estado": "enviado" }
-```
-
-`estado` solo admite `enviado` o `error`; cualquier otro valor devuelve `400 PAYLOAD_INVALIDO`. Un segundo `ack` sobre el mismo id con el mismo estado devuelve `200` (idempotente); con estado distinto devuelve `409 CONFLICTO`.
-
----
-
-## 9. Endpoints que expone el BOT (`127.0.0.1:8788`)
-
-### 9.1 `GET /health`
-
-**Respuesta 200:**
-
-```json
-{
-  "conectado": true,
-  "numero": "573009876543",
-  "ultima_conexion": 1795451000000
-}
-```
-
-| Campo | Tipo | Significado |
-|---|---|---|
-| `conectado` | booleano | Si la sesión de WhatsApp está activa |
-| `numero` | texto o null | Número del bot, si la sesión lo conoce |
-| `ultima_conexion` | entero o null | Epoch ms de la última conexión correcta |
-
-### 9.2 `GET /api/v1/status`
-
-Estado detallado de la sesión, útil para la pantalla de diagnóstico de la app.
-
-```json
-{
-  "estado": "conectado",
-  "conectado": true,
-  "numero": "573009876543",
-  "desde": 1795400000000,
-  "ultima_conexion": 1795451000000,
-  "mensajes_recibidos": 132,
-  "mensajes_enviados": 87,
-  "version": "0.1.0",
-  "modo_mock": false
-}
-```
-
-`estado` puede ser: `conectado`, `desconectado`, `esperando_codigo`, `cerrado` (sesión inválida, hay que revincular) o `mock`.
-
-### 9.3 `POST /api/v1/send`
-
-La app pide un envío inmediato (pantalla de prueba o aviso urgente). El uso normal de reportes va por la cola `/outbox` para no bloquear la app.
-
-**Petición:**
-
-```json
-{
-  "tipo": "texto",
-  "destinatario": "573001234567",
-  "texto": "Prueba de conexion desde Gestor Finanzas.",
-  "adjunto_base64": null,
-  "mime": null
-}
-```
-
-**Respuesta 202:**
-
-```json
-{ "id_envio": 88, "estado": "en_cola" }
-```
-
-`estado` es `enviado` si WhatsApp respondió de inmediato, o `en_cola` si quedó pendiente por falta de conexión.
-
-### 9.4 `POST /api/v1/config`
-
-La app empuja la configuración al bot (horarios, destinatarios, modo silencioso).
-
-**Petición:**
-
-```json
-{
-  "destinatarios": ["573001234567"],
-  "horarios_reporte": ["07:30", "13:00", "20:30"],
-  "modo_silencioso": true,
-  "zona_horaria": "America/Bogota"
-}
-```
-
-**Respuesta 200:**
-
-```json
-{ "ok": true, "version": 4 }
-```
-
-La app llama a esta ruta en cada arranque si su `configuracion.version` es mayor que la que el bot reportó por última vez. `modo_silencioso: true` significa que el bot **no** responde a mensajes que no sean del número autorizado ni inicia conversaciones.
-
----
-
-## 10. Modo mock (`MOCK_BOT=true`)
-
-Con `MOCK_BOT=true` la app **no abre sockets**: simula al bot en memoria. Sirve para el emulador, donde no hay Termux ni WhatsApp.
-
-| Situación | Comportamiento simulado |
+| Ruta anterior | Estado |
 |---|---|
-| `GET /health` simulado | `{"conectado": true, "numero": "573000000000", "ultima_conexion": <ahora>}` |
-| `GET /api/v1/status` simulado | `estado: "mock"`, contadores inventados y estables |
-| `POST /api/v1/send` simulado | Responde `{id_envio: n, estado: "enviado"}` y guarda el mensaje en una bandeja de salida visible en la app |
-| `POST /api/v1/config` simulado | Responde `{ok: true, version: n}` y guarda localmente |
-| Mensaje entrante simulado | Un botón "simular mensaje" en Ajustes crea un `inbox` como si viniera de WhatsApp |
-| Errores | Se pueden forzar desde Ajustes (`fallo de red`, `401`, `413`) para probar los caminos tristes |
+| `GET /api/v1/health` | **Retirada.** Sustituida por `GET /api/salud` |
+| `POST /api/v1/inbox` | **Retirada.** Sustituida por `/api/capturas/texto`, `/api/capturas/foto` y `/api/audio` |
+| `GET /api/v1/config` | **Retirada.** La configuración viaja en el prompt/configuración del bot (Prompt 3) |
+| `GET /api/v1/outbox` y `POST /api/v1/outbox/{id}/ack` | **Pendientes (Prompt 3)** |
+| `POST /api/v1/send` (servidor del bot) | **Pendiente (Prompt 3)** |
 
-Reglas del mock:
-
-- **Cero red:** no se llama a `127.0.0.1:8788`, no se importa Baileys.
-- **Mismos tipos y formas JSON** que el contrato real: si el mock funciona, el real también.
-- La interfaz muestra siempre un aviso visible: "Bot simulado — los mensajes no salen del teléfono".
-- `MOCK_BOT` se define en el entorno del bot y en la app por configuración (clave `bot_modo_mock`). Si los dos están activos, manda la app.
+Ninguna de estas rutas llegó a implementarse en la Fase 0 ni existían datos que migrar.
 
 ---
 
-## 11. Secuencia completa: captura por WhatsApp y confirmación
+## 9. Endpoints del BOT (`127.0.0.1:8788`) — pendientes del Prompt 3
+
+Se documentan aquí para no perder el diseño, pero **no están implementados**:
+
+| Ruta | Para qué |
+|---|---|
+| `GET /salud` | Estado de la sesión de WhatsApp |
+| `POST /api/enviar` | Envío inmediato (confirmaciones y reportes) |
+| `GET /api/estado` | Diagnóstico de la sesión |
+
+Las rutas exactas y sus cuerpos se cerrarán en el Prompt 3, cuando se implemente Baileys. No
+forman parte de la entrega de la Fase 2 parte 1.
+
+---
+
+## 10. Modo mock (`MOCK_BOT`)
+
+En la Fase 2 el modo mock **no simula el bot en memoria**: es un **simulador dentro de la app**
+que hace una **llamada HTTP real** al servidor local, con el token guardado, exactamente como
+lo haría el bot (decisión D6 / ADR-032). Así se prueba el servidor de verdad desde el emulador.
+
+| Aspecto | Comportamiento |
+|---|---|
+| Activación | Ajustes → Canal bot → `MOCK_BOT` (clave `bot_modo_mock`; `1` por defecto en desarrollo) |
+| Pantalla | Ajustes → Avanzado → **Simulador de bot** (solo visible con `MOCK_BOT` activo) |
+| Mensaje de texto | Pide un texto (y opcionalmente un `message_id`), envía `POST /api/capturas/texto` |
+| Imagen | Elige un archivo del teléfono y envía `POST /api/capturas/foto` |
+| Audio | Elige un archivo del teléfono y envía `POST /api/audio` |
+| Token | Usa el token real de la app |
+| Aviso | La pantalla muestra siempre "Bot simulado — usa el servidor local de la app" |
+| Internet | **No hay red de salida**: todo va a `127.0.0.1` |
+| Al terminar | Navega a `/bandeja` para ver la captura recién creada |
+
+El modo mock del **bot** (sin red, dentro del proceso Node) se definirá en el Prompt 3.
+
+---
+
+## 11. Secuencia completa: captura por texto y confirmación
 
 ```
-1  Usuario escribe a WhatsApp: "Taxi 9.800"
-2  WhatsApp -> bot: mensaje entrante (wamid...)
-3  Bot -> app: POST /api/v1/inbox
-      {"id_mensaje":"wamid.HBgM...","remitente":"573001234567",
-       "tipo":"texto","timestamp":1795451700000,
-       "texto":"Taxi 9.800","archivo_base64":null,"mime":null}
-4  App: valida token, remitente autorizado, tamano; crea captura id 41
-5  App -> bot: 202 {"recibido":true,"id_captura":41,"estado":"pendiente_revision"}
-6  App: encola acuse de recibo en su outbox (id 12)
-7  Bot: GET /api/v1/outbox  -> recibe id 12
-8  Bot -> WhatsApp -> usuario: "Anotado. Confirma en la app para guardarlo."
-9  Bot -> app: POST /api/v1/outbox/12/ack {"estado":"enviado"}
-10 Usuario abre la app, revisa la captura 41, elige cuenta y categoria, confirma
-11 App: crea transaccion (gasto, 980000 centavos, cuenta Efectivo, Alimentacion/Transporte)
-12 App: encola aviso "Registrado: Taxi $9.800" (id 13)  ->  bot lo envia en <=30 s
-13 App: marca la captura como confirmada y la enlaza a la transaccion
+1  Usuario escribe en WhatsApp "gasté 18.500 en mercado" (o en el simulador de la app)
+2  Bot (o simulador) -> app: POST /api/capturas/texto
+       {"message_id":"wamid...","texto":"gasté 18.500 en mercado",
+        "canal":"texto","timestamp":1795451700000}
+3  App: valida token, tamaño e idempotencia; crea captura 41 (origen bot, estado listo)
+4  App: corre el parser y guarda propuesta_json:
+       {"tipo":"gasto","monto_centavos":1850000,"categoria":"Alimentación",
+        "confianza":"alta","faltantes":[]}
+5  App -> bot: 201 {"captura_id":41,"estado":"listo"}
+6  Usuario abre la app: ve el badge de la bandeja (41) y entra a revisar
+7  Revisión: formulario de transacción prellenado con la propuesta; el usuario corrige si hace falta
+8  Usuario confirma: se crea la transacción (gasto $18.500, Alimentación, origen bot)
+9  App: captura pasa a "confirmado", se guarda transaccion_id y procesada_at
 ```
 
 Variantes:
 
-| Tipo | Cambios en la secuencia |
+| Caso | Cambios |
 |---|---|
-| Audio | Paso 3 con `tipo: "audio"` y `archivo_base64`; la app transcribe con whisper_edge antes del paso 10 |
-| Imagen | Paso 3 con `tipo: "imagen"`; la app corre OCR, guarda el recibo y propone monto/fecha |
-| Remitente no autorizado | Paso 4 responde `estado: "ignorado"`; no se crea captura ni acuse |
-| Token incorrecto | Paso 4 responde `401 NO_AUTORIZADO`; el bot registra el fallo y no insiste |
-| App bloqueada | Paso 4 responde `503 NO_DISPONIBLE`; el bot reintenta con espera creciente |
+| Foto | Paso 2 usa `/api/capturas/foto` (multipart); la captura queda `listo` sin propuesta, pendiente de revisión manual (OCR después) |
+| Audio | Paso 2 usa `/api/audio` (multipart); la captura queda `pendiente` (transcripción después) |
+| Parser incompleto | Paso 4 deja `confianza: baja` y `faltantes`; la UI resalta la captura y abre el formulario vacío con el texto crudo visible |
+| Duplicado | Paso 3 responde `409` con `captura_id`; no se crea nada |
+| Token inválido | `401`; el bot no insiste |
+| App cerrada | El servidor no está escuchando: el cliente recibe error de conexión y reintenta cuando la app vuelva (ver §12) |
 
 ---
 
-## 12. Tabla resumen de endpoints
+## 12. Ciclo de vida del servidor (limitación de esta parte)
 
-| # | Método | Ruta | Servidor | Quién llama | Token | Idempotente | Fase |
-|---|---|---|---|---|---|---|---|
-| 1 | GET | `/api/v1/health` | App :8787 | Bot | No | Sí | 2 |
-| 2 | GET | `/api/v1/config` | App :8787 | Bot | Sí | Sí | 2 |
-| 3 | POST | `/api/v1/inbox` | App :8787 | Bot | Sí | Sí (`id_mensaje`) | 2 |
-| 4 | GET | `/api/v1/outbox` | App :8787 | Bot | Sí | Sí | 2 |
-| 5 | POST | `/api/v1/outbox/{id}/ack` | App :8787 | Bot | Sí | Sí | 2 |
-| 6 | GET | `/health` | Bot :8788 | App | No | Sí | 2 |
-| 7 | GET | `/api/v1/status` | Bot :8788 | App | Sí | Sí | 2 |
-| 8 | POST | `/api/v1/send` | Bot :8788 | App | Sí | No (cada llamada es un envío) | 2 |
-| 9 | POST | `/api/v1/config` | Bot :8788 | App | Sí | Sí (versión) | 2 |
+- El servidor arranca **cuando la app se abre** y se detiene cuando la app se cierra.
+- **No hay servicio en primer plano todavía** (eso es la Fase 2.6): si Android mata la app,
+  el bot no puede entregar mensajes hasta que el usuario la vuelva a abrir.
+- Mientras la app está en segundo plano el servidor puede seguir vivo un rato, pero **no está
+  garantizado**; el bot debe tratar el error de conexión como `NO_DISPONIBLE` y reintentar.
+- El estado del servidor (escuchando / error / puerto ocupado) se muestra en Ajustes → Canal bot.
 
-Los reportes de la Fase 4 no agregan rutas: usan la misma cola `/outbox` con mensajes más largos y adjuntos PDF.
+Está documentado como limitación aceptada en [ARCHITECTURE.md](ARCHITECTURE.md) y
+[DECISIONS.md](DECISIONS.md) (ADR-036).
 
 ---
 
 ## 13. Versionado
 
-- La versión vive en la ruta (`/api/v1`), no en una cabecera.
-- Cambios compatibles (agregar un campo opcional, agregar un valor nuevo a un enum) **no** cambian la versión: el receptor debe ignorar campos desconocidos.
-- Cambios incompatibles (quitar un campo, cambiar un tipo, cambiar el significado de un código) crean `/api/v2` y las dos versiones conviven mientras el usuario actualiza el bot.
-- La app y el bot comparan en el arranque `health.version_app`/`status.version`; si hay salto de versión mayor, la app muestra un aviso de "actualiza el bot".
-- El contrato lo implementa primero la app (servidor de prueba) y después el bot; nunca al revés.
+- La versión del contrato es **2** (Fase 2, capturas). Se identifica en este documento.
+- Las rutas aprobadas **no llevan prefijo de versión** (decisión del dueño, Opción A): son
+  `/api/salud`, `/api/capturas/...`, `/api/audio` y `/api/pendientes`.
+- Cambios **compatibles** (agregar un campo opcional o un valor nuevo a un enum que el receptor
+  pueda ignorar) no cambian la versión.
+- Cambios **incompatibles** publican rutas `/api/v2/...` y mantienen las actuales como alias
+  mientras el bot se actualiza; las rutas sin versión quedan congeladas tal como están aquí.
+- El diseño `/api/v1/inbox` de la Fase 0 **nunca se implementó** y queda retirado.
 
 ---
 
-## 14. Qué falta para que esto exista
+## 14. Tabla resumen de endpoints
+
+| # | Método | Ruta | Servidor | Token | Idempotente | Estado |
+|---|---|---|---|---|---|---|
+| 1 | GET | `/api/salud` | App :8787 | No | Sí | Implementado (Fase 2.2) |
+| 2 | POST | `/api/capturas/texto` | App :8787 | Sí | Sí (`message_id`) | Implementado (Fase 2.2) |
+| 3 | POST | `/api/capturas/foto` | App :8787 | Sí | Sí (`message_id`) | Implementado (Fase 2.2) |
+| 4 | POST | `/api/audio` | App :8787 | Sí | Sí (`message_id`) | Implementado (Fase 2.2) |
+| 5 | GET | `/api/pendientes` | App :8787 | Sí | Sí | Implementado (Fase 2.2) |
+| 6 | GET | `/salud` | Bot :8788 | No | Sí | Pendiente (Prompt 3) |
+| 7 | POST | `/api/enviar` | Bot :8788 | Sí | No | Pendiente (Prompt 3) |
+| 8 | GET | `/api/estado` | Bot :8788 | Sí | Sí | Pendiente (Prompt 3) |
+
+---
+
+## 15. Qué falta para cerrar el canal
 
 | Pieza | Fase | Estado |
 |---|---|---|
-| Servidor HTTP de la app en `:8787` | 2 | No existe |
-| Servidor HTTP del bot en `:8788` | 2 | No existe |
-| Generación y comparación del token | 2 | No existe |
-| Tablas `captura_entrante` (entrada) y `mensaje_salida` (cola y acuses) | 2 | No existe |
-| Baileys conectado a WhatsApp | 2 | No instalado |
-| Modo mock con bandeja simulada | 2 | No existe |
-| Reportes por `/outbox` y PDF | 4 | No existe |
-
-Cuando una pieza exista, se actualiza esta tabla y se anota la fecha. El detalle por fase está en [PHASES.md](PHASES.md); el modelo de datos que hay detrás, en [DATA_MODEL.md](DATA_MODEL.md).
+| Servidor HTTP de la app en `:8787` con token, límites e idempotencia | 2.2 | **Implementado** |
+| Tabla `captura_entrante` y bandeja de revisión | 2.1 | **Implementado** |
+| Parser de texto en español | 2.1 | **Implementado** |
+| Simulador de bot dentro de la app | 2.2 | **Implementado** |
+| Bot real con Baileys en Termux | Prompt 3 | No existe |
+| Cola de salida y acuses (`mensaje_salida`) | Prompt 3 | No existe |
+| OCR de recibos | Fase 2.4 | No existe |
+| Transcripción de audio offline | Fase 2.5 | No existe |
+| Servicio en primer plano | Fase 2.6 | No existe |
+| Reportes por WhatsApp | Fase 4 | No existe |

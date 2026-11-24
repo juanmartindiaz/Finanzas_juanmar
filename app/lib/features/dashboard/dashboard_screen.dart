@@ -24,6 +24,11 @@ class DashboardScreen extends ConsumerWidget {
     final tasasAsync = ref.watch(tasasProvider);
     final monedaBaseAsync = ref.watch(monedaBaseProvider);
     final categoriasAsync = ref.watch(categoriasProvider);
+    final pendientesAsync = ref.watch(capturasPendientesProvider);
+    final int pendientes = switch (pendientesAsync) {
+      AsyncData<int>(:final int value) => value,
+      _ => 0,
+    };
 
     final bool hayError = cuentasAsync.hasError ||
         transaccionesAsync.hasError ||
@@ -40,6 +45,15 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Gestor Finanzas'),
         actions: <Widget>[
+          IconButton(
+            tooltip: 'Bandeja de capturas',
+            icon: Badge(
+              isLabelVisible: pendientes > 0,
+              label: Text('$pendientes'),
+              child: const Icon(Icons.inbox_outlined),
+            ),
+            onPressed: () => context.push('/bandeja'),
+          ),
           IconButton(
             tooltip: 'Cuentas',
             icon: const Icon(Icons.account_balance_wallet_outlined),

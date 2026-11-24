@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -5,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/utils/dinero.dart';
 import '../../core/utils/fechas.dart';
 import '../../data/providers.dart';
+import '../../domain/entities/captura.dart';
 import '../../domain/entities/categoria.dart';
 import '../../domain/entities/cuenta.dart';
 import '../../domain/entities/etiqueta.dart';
@@ -15,9 +18,12 @@ import '../shared/vistas.dart';
 
 /// Formulario para crear o editar un ingreso, gasto o transferencia.
 class TransaccionFormScreen extends ConsumerStatefulWidget {
-  const TransaccionFormScreen({super.key, this.transaccionId});
+  const TransaccionFormScreen({super.key, this.transaccionId, this.capturaId});
 
   final int? transaccionId;
+
+  /// Si viene, el formulario está en modo revisión de captura.
+  final int? capturaId;
 
   @override
   ConsumerState<TransaccionFormScreen> createState() =>
@@ -41,8 +47,11 @@ class _TransaccionFormScreenState
   bool _cargando = false;
   bool _guardando = false;
   List<String> _errores = <String>[];
+  CapturaEntrante? _captura;
+  File? _adjunto;
 
   bool get _esEdicion => widget.transaccionId != null;
+  bool get _esRevision => widget.capturaId != null;
   bool get _esTransferencia => _tipo == TipoTransaccion.transferencia;
 
   @override
@@ -50,6 +59,8 @@ class _TransaccionFormScreenState
     super.initState();
     if (_esEdicion) {
       _cargar();
+    } else if (_esRevision) {
+      _cargarCaptura();
     }
   }
 
@@ -100,10 +111,133 @@ class _TransaccionFormScreenState
     });
   }
 
+  Future<void> _cargarCaptura() async {
+    setState(() => _cargando = true);
+    final CapturaEntrante? captura =
+        await ref.read(capturasRepoProvider).obtener(widget.capturaId!);
+    if (!mounted) {
+      return;
+    }
+    if (captura == null) {
+      setState(() {
+        _cargando = false;
+        _errores = <String>['La captura no existe.'];
+      });
+      return;
+    }
+    File? adjunto;
+    if (captura.adjuntoPath != null) {
+      final File archivo =
+          await ref.read(almacenAdjuntosProvider).resolver(captura.adjuntoPath!);
+      if (await archivo.exists()) {
+        adjunto = archivo;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _cargando = false;
+      _captura = captura;
+      _adjunto = adjunto;
+      _fechaHora = DateTime.now();
+      final PropuestaCaptura? propuesta = captura.propuesta;
+      if (propuesta != null) {
+        _tipo = propuesta.tipo ?? TipoTransaccion.gasto;
+        if (propuesta.montoCentavos != null) {
+          _montoCtrl.text =
+              formatearMonto(propuesta.montoCentavos!, propuesta.moneda);
+        }
+        _cuentaId = propuesta.cuentaId;
+        _categoriaId = propuesta.categoriaId;
+        _subcategoriaId = propuesta.subcategoriaId;
+        _etiquetaIds = propuesta.etiquetaIds.toSet();
+      }
+    });
+  }
+
+  Widget _tarjetaCaptura(BuildContext context) {
+    final CapturaEntrante? captura = _captura;
+    if (captura == null) {
+      return const SizedBox.shrink();
+    }
+    final PropuestaCaptura? propuesta = captura.propuesta;
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(
+                  switch (captura.canal) {
+                    CanalCaptura.texto => Icons.chat_outlined,
+                    CanalCaptura.audio => Icons.mic_none,
+                    CanalCaptura.foto => Icons.image_outlined,
+                    CanalCaptura.app => Icons.edit_note,
+                  },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${captura.canal.etiqueta} · ${captura.origen.etiqueta}',
+                  ),
+                ),
+                Chip(
+                  label: Text(captura.estado.etiqueta),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+            if (captura.textoCrudo != null &&
+                captura.textoCrudo!.trim().isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text('"${captura.textoCrudo!.trim()}"'),
+            ],
+            if (captura.canal == CanalCaptura.foto && _adjunto != null) ...<Widget>[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  _adjunto!,
+                  height: 160,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => const Text('No se pudo mostrar la foto.'),
+                ),
+              ),
+            ] else if (captura.canal == CanalCaptura.audio) ...<Widget>[
+              const SizedBox(height: 8),
+              const Row(
+                children: <Widget>[
+                  Icon(Icons.audiotrack, size: 18),
+                  SizedBox(width: 6),
+                  Text('Audio adjunto (sin transcripción todavía)'),
+                ],
+              ),
+            ],
+            if (propuesta != null && propuesta.faltantes.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 8),
+              Text(
+                'El parser no pudo completar: ${propuesta.faltantes.join(', ')}.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cuentasAsync = ref.watch(cuentasProvider);
-    final categoriasAsync = ref.watch(categoriasProvider);
+    final cuentasAsync = ref.watch(cuentasProvider);    final categoriasAsync = ref.watch(categoriasProvider);
     final subcategoriasAsync = ref.watch(subcategoriasProvider);
     final etiquetasAsync = ref.watch(etiquetasProvider);
 
@@ -158,7 +292,21 @@ class _TransaccionFormScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_esEdicion ? 'Editar movimiento' : 'Nuevo movimiento'),
+        title: Text(
+          _esRevision
+              ? 'Revisar captura'
+              : _esEdicion
+                  ? 'Editar movimiento'
+                  : 'Nuevo movimiento',
+        ),
+        actions: <Widget>[
+          if (_esRevision)
+            IconButton(
+              tooltip: 'Descartar captura',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _descartar,
+            ),
+        ],
       ),
       body: cargando
           ? const VistaCargando()
@@ -179,6 +327,10 @@ class _TransaccionFormScreenState
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: <Widget>[
+                      if (_esRevision) ...<Widget>[
+                        _tarjetaCaptura(context),
+                        const SizedBox(height: 16),
+                      ],
                       SegmentedButton<TipoTransaccion>(
                         segments: <ButtonSegment<TipoTransaccion>>[
                           for (final TipoTransaccion tipo
@@ -546,9 +698,26 @@ class _TransaccionFormScreenState
               montoDestino != null
           ? montoDestino / monto
           : null;
-      final repo = ref.read(transaccionesRepoProvider);
-      if (_esEdicion) {
-        await repo.actualizar(
+      if (_esRevision) {
+        await ref.read(capturasRepoProvider).confirmar(
+          capturaId: widget.capturaId!,
+          tipo: _tipo,
+          montoCentavos: monto!,
+          moneda: monedaOrigen,
+          cuentaId: _cuentaId!,
+          fecha: fechaIso(_fechaHora),
+          fechaHora: _fechaHora.millisecondsSinceEpoch,
+          etiquetaIds: _etiquetaIds.toList(),
+          cuentaDestinoId: _esTransferencia ? _cuentaDestinoId : null,
+          montoDestinoCentavos: _esTransferencia ? montoDestino : null,
+          monedaDestino: _esTransferencia ? monedaDestino : null,
+          categoriaId: _esTransferencia ? null : _categoriaId,
+          subcategoriaId: _esTransferencia ? null : _subcategoriaId,
+          nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
+          tasaCambio: tasa,
+        );
+      } else if (_esEdicion) {
+        await ref.read(transaccionesRepoProvider).actualizar(
           id: widget.transaccionId!,
           tipo: _tipo,
           montoCentavos: monto!,
@@ -566,7 +735,7 @@ class _TransaccionFormScreenState
           tasaCambio: tasa,
         );
       } else {
-        await repo.crear(
+        await ref.read(transaccionesRepoProvider).crear(
           tipo: _tipo,
           montoCentavos: monto!,
           moneda: monedaOrigen,
@@ -588,7 +757,11 @@ class _TransaccionFormScreenState
       }
       mostrarAviso(
         context,
-        _esEdicion ? 'Movimiento actualizado.' : 'Movimiento guardado.',
+        _esRevision
+            ? 'Captura confirmada.'
+            : _esEdicion
+                ? 'Movimiento actualizado.'
+                : 'Movimiento guardado.',
       );
       context.pop();
     } on Exception catch (e) {
@@ -598,6 +771,41 @@ class _TransaccionFormScreenState
         setState(() => _guardando = false);
       }
     }
+  }
+  Future<void> _descartar() async {
+    final CapturaEntrante? captura = _captura;
+    if (captura == null) {
+      return;
+    }
+    final bool confirma = await confirmarAccion(
+      context,
+      titulo: 'Descartar captura',
+      mensaje: 'No se creará ninguna transacción.',
+      textoConfirmar: 'Descartar',
+      destructivo: true,
+    );
+    if (!confirma || !mounted) {
+      return;
+    }
+    bool borrarArchivo = false;
+    if (captura.adjuntoPath != null) {
+      borrarArchivo = await confirmarAccion(
+        context,
+        titulo: 'Archivo adjunto',
+        mensaje: '¿Quieres borrar también el archivo guardado?',
+        textoConfirmar: 'Borrar archivo',
+        destructivo: true,
+      );
+    }
+    await ref.read(capturasRepoProvider).descartar(captura.id);
+    if (borrarArchivo && captura.adjuntoPath != null) {
+      await ref.read(almacenAdjuntosProvider).borrar(captura.adjuntoPath!);
+    }
+    if (!mounted) {
+      return;
+    }
+    mostrarAviso(context, 'Captura descartada.');
+    context.pop();
   }
 }
 

@@ -177,3 +177,28 @@ class Recibos extends Table {
   IntColumn get creadoEn => integer()();
   IntColumn get procesadoEn => integer().nullable()();
 }
+
+@DataClassName('CapturaRow')
+class CapturaEntrante extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get canal => text().customConstraint(
+    "NOT NULL CHECK (canal IN ('texto','audio','foto','app'))",
+  )();
+  TextColumn get origen => text().customConstraint(
+    "NOT NULL CHECK (origen IN ('mock','bot','manual'))",
+  )();
+  TextColumn get messageIdExterno => text().nullable()();
+  TextColumn get textoCrudo => text().nullable()();
+  TextColumn get adjuntoPath => text().nullable()();
+  TextColumn get estado => text().customConstraint(
+    "NOT NULL DEFAULT 'pendiente' "
+    "CHECK (estado IN ('pendiente','procesando','listo','confirmado',"
+    "'descartado','error'))",
+  )();
+  TextColumn get propuestaJson => text().nullable()();
+  TextColumn get errorDetalle => text().nullable()();
+  IntColumn get transaccionId =>
+      integer().nullable().references(Transacciones, #id)();
+  IntColumn get createdAt => integer()();
+  IntColumn get procesadaAt => integer().nullable()();
+}

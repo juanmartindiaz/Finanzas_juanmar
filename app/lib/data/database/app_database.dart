@@ -1,16 +1,17 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import 'rutas_base_datos.dart';
 import 'tables.dart';
 
 part 'app_database.g.dart';
 
 /// Base de datos local de "Gestor Finanzas" (SQLite con Drift).
 ///
-/// - `schemaVersion = 1`: esquema de la Fase 1.
+/// - `schemaVersion = 2`: Fase 1 + `captura_entrante` (Fase 2 parte 1).
+/// - La ruta del archivo se fija con [RutasBaseDatos.ruta] para que la apertura
+///   y el respaldo previo a migrar apunten al mismo archivo.
 /// - Llaves foráneas activas en cada apertura.
-/// - Índices únicos parciales para que los nombres se puedan reutilizar después
-///   de un borrado lógico (ver `_crearIndices`).
 @DriftDatabase(
   tables: <Type>[
     Cuentas,
@@ -22,16 +23,23 @@ part 'app_database.g.dart';
     TasasCambio,
     Configuracion,
     Recibos,
+    CapturaEntrante,
   ],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(driftDatabase(name: 'gestor_finanzas'));
+  AppDatabase()
+    : super(
+        driftDatabase(
+          name: nombreBaseDatos,
+          native: DriftNativeOptions(databasePath: RutasBaseDatos.ruta),
+        ),
+      );
 
-  /// Constructor para pruebas con un ejecutor propio (por ejemplo en memoria).
+  /// Constructor para pruebas con un ejecutor propio (archivo o memoria).
   AppDatabase.paraPruebas(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -40,8 +48,12 @@ class AppDatabase extends _$AppDatabase {
       await _crearIndices();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      // Fase 1: esquema inicial. Cuando exista una migración real, aquí se
-      // copia antes el archivo SQLite (DATA_MODEL.md §8.1).
+      if (from < 2) {
+        // v1 -> v2: solo se agrega la tabla de capturas. No se altera ninguna
+        // tabla existente ni se tocan datos (DATA_MODEL.md §8.1).
+        await m.createTable(capturaEntrante);
+      }
+      await _crearIndices();
     },
     beforeOpen: (OpeningDetails details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -75,6 +87,14 @@ class AppDatabase extends _$AppDatabase {
           'ON subcategorias(categoria_id)',
       'CREATE INDEX IF NOT EXISTS idx_cuenta_activa ON cuentas(activa)',
       'CREATE INDEX IF NOT EXISTS idx_recibo_estado ON recibos(estado)',
+      // Fase 2: bandeja de capturas.
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_captura_message_id '
+          'ON captura_entrante(message_id_externo) '
+          'WHERE message_id_externo IS NOT NULL',
+      'CREATE INDEX IF NOT EXISTS idx_captura_estado '
+          'ON captura_entrante(estado, created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_captura_transaccion '
+          'ON captura_entrante(transaccion_id)',
     ];
     for (final String sentencia in sentencias) {
       await customStatement(sentencia);

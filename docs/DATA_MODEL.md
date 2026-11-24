@@ -2,7 +2,7 @@
 
 **Estado: aprobado para la Fase 1; todavía no hay tablas creadas.** La base SQLite se implementa con Drift en la **Fase 1** (`cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta`, `tasa_cambio`, `configuracion` y la estructura vacía de `recibo`), se amplía en la **Fase 3** (presupuestos, deudas, créditos, metas y recurrentes) y en la **Fase 4** (tasas automáticas y respaldo). Este documento es el acuerdo sobre qué se guarda y con qué reglas.
 
-Complementos: cómo se calculan los saldos está en este mismo documento, §6; las capturas que llegan por WhatsApp, en [API_CONTRACT.md](API_CONTRACT.md), §8.3.
+Complementos: cómo se calculan los saldos está en este mismo documento, §6; las capturas que llegan por el canal, en [API_CONTRACT.md](API_CONTRACT.md), §8.
 
 ---
 
@@ -302,35 +302,41 @@ Claves previstas:
 | `zona_horaria` | `America/Bogota` | Horarios de reportes y recordatorios |
 | `tema` | `claro`, `oscuro`, `sistema` | Apariencia |
 | `bloqueo_biometria` | `0`, `1` | Usar huella si el teléfono la tiene |
-| `bot_modo_mock` | `0`, `1` | Modo simulado del bot (ver [API_CONTRACT.md](API_CONTRACT.md)) |
-| `bot_puerto_app` | `8787` | Puerto del servidor de la app |
+| `bot_modo_mock` | `0`/`1` | Activa el simulador de bot de la app (1 por defecto en desarrollo) |
+| `bot_puerto_app` | `8787` | Puerto del servidor local (8787 por defecto; configurable en Ajustes) |
 | `bot_puerto` | `8788` | Puerto del servidor del bot |
-| `bot_token` | cadena aleatoria | Token de `X-Bot-Token` |
+| `bot_token` | cadena aleatoria de 64 caracteres | Token de `X-Bot-Token`; se genera en el primer arranque y se puede regenerar en Ajustes |
+| `captura_cuenta_id` | id de cuenta (vacío = ninguna) | id de la cuenta por defecto para capturas |
 | `bot_ultima_config_version` | entero | Evita reenviar configuración |
 | `respaldo_auto_dias` | `0`, `1`, `7` | Frecuencia del respaldo en Drive |
 | `ultimo_respaldo_en` | epoch ms | Para avisar si hay respaldo viejo |
 
 ### 3.16 `captura_entrante` (auxiliar del canal, Fase 2)
 
-No es una entidad financiera: es la bandeja donde el bot deja lo que llega antes de que el usuario confirme. Existe porque el contrato responde `id_captura` (ver [API_CONTRACT.md](API_CONTRACT.md), §8.3).
+No es una entidad financiera: es la bandeja donde el bot (o el simulador) deja lo que llega antes de que el usuario confirme. Se crea en la Fase 2 (schemaVersion 2) y nunca crea una transacción por sí sola (ADR-031).
 
 | Campo | Tipo | Nulo | Regla |
 |---|---|---|---|
-| `id` | INTEGER | No | PK; es el `id_captura` del contrato |
-| `id_mensaje` | TEXT | No | **Único**; llave de idempotencia del mensaje de WhatsApp |
-| `remitente` | TEXT | No | Número en formato internacional |
-| `tipo` | TEXT | No | `texto`, `audio`, `imagen` |
-| `recibido_en` | INTEGER | No | Epoch ms del mensaje |
-| `texto_original` | TEXT | Sí | Texto recibido o transcripción del audio |
-| `archivo_path` | TEXT | Sí | Copia local del audio o imagen |
-| `recibo_id` | INTEGER | Sí | FK → `recibo.id` si la captura era una imagen |
-| `estado` | TEXT | No | `pendiente`, `confirmada`, `descartada`, `ignorada` |
-| `transaccion_id` | INTEGER | Sí | FK → `transaccion.id` al confirmar |
-| `creado_en`, `actualizado_en` | INTEGER | No | Epoch ms |
+| `id` | INTEGER | No | PK; es el `captura_id` del contrato |
+| `canal` | TEXT | No | `texto`, `audio`, `foto` o `app` (entrada manual dentro de la app) |
+| `origen` | TEXT | No | `mock`, `bot` o `manual` |
+| `message_id_externo` | TEXT | Sí | Único entre no nulos (índice parcial); idempotencia del bot |
+| `texto_crudo` | TEXT | Sí | Texto recibido o, cuando exista, transcripción del audio |
+| `adjunto_path` | TEXT | Sí | Ruta relativa dentro de la carpeta privada `capturas/` |
+| `estado` | TEXT | No | `pendiente` (por defecto), `procesando`, `listo`, `confirmado`, `descartado`, `error` |
+| `propuesta_json` | TEXT | Sí | JSON con la propuesta del parser (tipo, monto, categoría, confianza, faltantes) |
+| `error_detalle` | TEXT | Sí | Motivo cuando `estado = 'error'` |
+| `transaccion_id` | INTEGER | Sí | FK → `transaccion.id`; obligatoria cuando `estado = 'confirmado'` |
+| `created_at` | INTEGER | No | Epoch ms del mensaje o de la captura manual |
+| `procesada_at` | INTEGER | Sí | Cuándo pasó a `listo`, `confirmado`, `descartado` o `error` |
+
+Transiciones: al entrar queda `pendiente`; el parser de texto la deja `listo` con propuesta; las fotos quedan `listo` sin OCR y los audios `pendiente` sin transcripción (fases 2.4/2.5); al confirmar pasa a `confirmado` con `transaccion_id`; al descartar, a `descartado`. `procesando` y `error` quedan reservados para trabajos asíncronos.
 
 ### 3.17 `mensaje_salida` (auxiliar, cola hacia el bot, Fase 2)
 
-Tampoco es financiera: es la bandeja de lo que la app quiere enviar por WhatsApp (confirmaciones y, en la Fase 4, reportes). El bot la lee con `GET /api/v1/outbox` y confirma con `ack` (ver [API_CONTRACT.md](API_CONTRACT.md), §8.4 y §8.5).
+**No existe en la Fase 2 parte 1.** Esta tabla y la cola de salida se crean en el Prompt 3 (migración v3), junto con el bot real.
+
+Tampoco es financiera: es la bandeja de lo que la app querrá enviar por WhatsApp (confirmaciones y, en la Fase 4, reportes). Su contrato y sus rutas se cerrarán en el **Prompt 3**, junto con el bot real; todavía no hay endpoints implementados (ver [API_CONTRACT.md](API_CONTRACT.md), §9).
 
 | Campo | Tipo | Nulo | Regla |
 |---|---|---|---|
@@ -368,6 +374,10 @@ La app guarda el **archivo**, no base64: la base no debe inflarse con megabytes 
 14. **Llaves foráneas activas:** `PRAGMA foreign_keys = ON` en cada apertura de la base. Sin eso, SQLite ignora las FK y la integridad se pierde en silencio.
 15. **Estado y origen:** `estado` por defecto `confirmada`; solo el bot (Fase 2) crea `pendiente`. `origen` por defecto `manual`.
 16. **Nombres reutilizables:** los índices únicos de nombres son parciales (`WHERE eliminado_en IS NULL`), para poder reutilizar un nombre después de un borrado lógico.
+17. **Captura:** `canal`, `origen` y `estado` solo admiten los valores de §3.16; `message_id_externo` es único entre no nulos; `propuesta_json` debe ser JSON válido (o NULL).
+18. **Confirmación humana:** una captura nunca crea una transacción sola; al confirmar se exige `transaccion_id` no nulo y `estado = 'confirmado'`; una captura ya confirmada no se confirma dos veces.
+19. **Adjuntos:** `adjunto_path` es relativo a la carpeta privada `capturas/`; si se descarta la captura, el archivo se puede borrar; la base no guarda binarios.
+20. **Adjuntos y OCR:** en la Fase 2 parte 1 las fotos no tienen OCR y los audios no tienen transcripción; la propuesta puede ser NULL.
 
 ---
 
@@ -394,9 +404,10 @@ La app guarda el **archivo**, no base64: la base no debe inflarse con megabytes 
 | `tasa_cambio` | (`moneda_origen`, `moneda_destino`, `fecha`) único | Consulta de la tasa del día |
 | `cuenta` | (`activa`) | Cuentas disponibles al registrar |
 | `cuenta` | (`nombre`) único parcial `WHERE eliminado_en IS NULL` | Nombres únicos entre cuentas vigentes |
-| `captura_entrante` | (`id_mensaje`) único | Idempotencia del bot |
-| `captura_entrante` | (`estado`, `recibido_en`) | Bandeja de pendientes |
-| `mensaje_salida` | (`estado`, `creado_en`) | Qué falta entregar y en qué orden |
+| `captura_entrante` | (`message_id_externo`) único parcial `WHERE message_id_externo IS NOT NULL` | Idempotencia del bot |
+| `captura_entrante` | (`estado`, `created_at`) | Bandeja y conteo de pendientes |
+| `captura_entrante` | (`transaccion_id`) | Trazabilidad de la confirmación |
+| `mensaje_salida` | (`estado`, `creado_en`) | Qué falta entregar y en qué orden (tabla del Prompt 3) |
 
 Criterio: cualquier consulta que corra en la pantalla principal o en un reporte debe tener índice; las consultas de configuración no lo necesitan.
 
@@ -475,7 +486,7 @@ La tasa se toma de `tasa_cambio` por (`origen`, `destino`, `fecha`) y, si no exi
 |---|---|---|
 | 0 | Ninguna (solo este documento) | Nada financiero |
 | 1 | `cuenta`, `categoria`, `subcategoria`, `etiqueta`, `transaccion`, `transaccion_etiqueta`, `tasa_cambio`, `configuracion` (parcial) y `recibo` (solo estructura) | Registrar gastos/ingresos/transferencias a mano y ver saldos |
-| 2 | `captura_entrante`, `mensaje_salida` (usa `recibo`) | Capturar por OCR, voz, texto y WhatsApp con revisión |
+| 2 | `captura_entrante` (parte 1); usa `recibo` (solo en 2.4); `mensaje_salida` queda para el Prompt 3 | Capturar por texto y adjuntar foto o audio para completar a mano; OCR y transcripción en 2.4/2.5, bot real en el Prompt 3 |
 | 3 | `presupuesto`, `deuda_persona`, `credito`, `meta`, `meta_movimiento`, `recurrente` | Planear y hacer seguimiento |
 | 4 | Ninguna nueva: amplía `tasa_cambio` (fuentes automáticas) y `configuracion` (respaldo completo) | Reportes, PDF, multimoneda real y respaldo en Drive |
 
@@ -525,10 +536,12 @@ CREATE TABLE transaccion (
 
 ### 8.1 Migraciones
 
-- Drift lleva `schemaVersion` entero; cada fase que cambia el esquema sube la versión y agrega su paso de migración.
-- Regla: **nunca** se borra una columna en una migración que pueda tener datos; se deja de usar y se documenta.
-- Antes de migrar, la app copia el archivo SQLite a `gestor_finanzas.backup.sqlite`; si la migración falla, restaura esa copia y avisa.
-- Los respaldos de Drive guardan la `schemaVersion` para que la restauración sepa si hace falta migrar.
+- Cada fase sube `schemaVersion`; la versión actual pasa a **2**.
+- **v1 → v2 (2026-11-24):** crea la tabla `captura_entrante` y sus índices. **No** se altera ninguna tabla existente ni se modifican datos; por eso la migración no puede perder información.
+- **Ruta exacta de la base:** una única función `rutaBaseDatos()` devuelve `getApplicationDocumentsDirectory()/gestor_finanzas.sqlite` y se usa también para abrir Drift con `DriftNativeOptions(databasePath: rutaBaseDatos)`. Así la apertura y el respaldo apuntan por construcción al mismo archivo (nada de rutas duplicadas a mano).
+- Antes de abrir la base, se copia `gestor_finanzas.sqlite` → `gestor_finanzas.sqlite.backup` en la misma carpeta. Si la apertura o la migración fallan, se restaura el `.backup` y se avisa en pantalla.
+- La prueba de migración crea una base v1 real en un archivo temporal, la abre con la v2 y verifica versión, datos y tabla nueva; usa la misma `rutaBaseDatos()`-derivada para comprobar que el backup apunta al archivo correcto.
+- Regla: nunca se borra una columna con datos; los respaldos de Drive guardan `schemaVersion`.
 
 ---
 
@@ -559,3 +572,20 @@ Fecha de aprobación: **2026-11-23**. Son ajustes al modelo acordados antes de i
 | Catálogo de monedas en código | Lista fija de monedas principales (COP como base), sin tabla nueva | Evitar una tabla y una pantalla de administración que no se necesitan (ADR-028) |
 | Índices únicos parciales | Los nombres son únicos solo entre registros vigentes (`WHERE eliminado_en IS NULL`) | Poder reutilizar nombres después de un borrado lógico (ADR-029) |
 | Recibo como estructura | `recibo` se crea vacía en la Fase 1; la Fase 2 solo la usa | No migrar la tabla cuando llegue el OCR |
+
+---
+
+## 11. Cambios aprobados al iniciar la Fase 2 (parte 1)
+
+Fecha de aprobación: **2026-11-24**. Son ajustes al modelo acordados al abrir la Fase 2; la única tabla nueva es `captura_entrante`.
+
+| Cambio | Qué cambió | Por qué |
+|---|---|---|
+| Bandeja de capturas | Se crea la tabla `captura_entrante` con los campos del Prompt 2 (canal, origen, texto, adjunto, estado, propuesta y transacción) | Guardar lo que llega antes de que el usuario confirme |
+| Trazabilidad de la confirmación | Se agrega `transaccion_id` a la captura | Saber qué transacción nació de cada captura e impedir la doble confirmación (ADR-031) |
+| Valores de canal, origen y estado | Canales `texto/audio/foto/app`, origen `mock/bot/manual` y estados `pendiente/procesando/listo/confirmado/descartado/error` | Distinguir si la captura vino del simulador, del bot o de la app, y en qué punto está |
+| Duplicado | `message_id_externo` es único entre no nulos; un duplicado responde `409` con el `captura_id` existente | Idempotencia sin crear capturas repetidas (ADR-030) |
+| Cola de salida | `mensaje_salida` se pospone al Prompt 3, junto con el bot real | La parte 1 solo recibe capturas; todavía no envía mensajes |
+| Fotos y audios | Se guardan en `capturas/` sin OCR ni transcripción; la propuesta puede ser NULL | OCR y transcripción llegan en 2.4 y 2.5 (ADR-033) |
+| Cuenta por defecto | Se agrega la clave `captura_cuenta_id` en `configuracion` | Prellenar la cuenta de las capturas y ahorrar toques (ADR-035) |
+| Contrato | El contrato pasa a **API v2 de capturas**, con rutas sin prefijo de versión | Un solo juego de rutas para el simulador y el bot (ADR-030) |

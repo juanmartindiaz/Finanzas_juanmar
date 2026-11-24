@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/entities/captura.dart';
 import '../domain/entities/categoria.dart';
 import '../domain/entities/cuenta.dart';
 import '../domain/entities/etiqueta.dart';
@@ -7,14 +8,18 @@ import '../domain/entities/subcategoria.dart';
 import '../domain/entities/tasa_cambio.dart';
 import '../domain/entities/transaccion.dart';
 import 'database/app_database.dart';
+import 'repositories/capturas_repository.dart';
 import 'repositories/categorias_repository.dart';
 import 'repositories/configuracion_repository.dart';
 import 'repositories/cuentas_repository.dart';
 import 'repositories/etiquetas_repository.dart';
 import 'repositories/tasas_repository.dart';
 import 'repositories/transacciones_repository.dart';
+import '../services/whatsapp_bridge/almacen_adjuntos.dart';
+import '../services/whatsapp_bridge/cliente_simulador.dart';
+import '../services/whatsapp_bridge/servidor_capturas.dart';
 
-/// Base de datos. En `main` se sobrescribe con la instancia ya sembrada.
+/// Base de datos. En `main` se sobrescribe con la instancia ya migrada.
 final Provider<AppDatabase> dbProvider = Provider<AppDatabase>((Ref ref) {
   final AppDatabase db = AppDatabase();
   ref.onDispose(db.close);
@@ -41,6 +46,14 @@ final Provider<TransaccionesRepository> transaccionesRepoProvider =
   (Ref ref) => TransaccionesRepository(ref.watch(dbProvider)),
 );
 
+final Provider<CapturasRepository> capturasRepoProvider =
+    Provider<CapturasRepository>(
+  (Ref ref) => CapturasRepository(
+    ref.watch(dbProvider),
+    ref.watch(transaccionesRepoProvider),
+  ),
+);
+
 final Provider<TasasRepository> tasasRepoProvider = Provider<TasasRepository>(
   (Ref ref) => TasasRepository(ref.watch(dbProvider)),
 );
@@ -49,6 +62,20 @@ final Provider<ConfiguracionRepository> configuracionRepoProvider =
     Provider<ConfiguracionRepository>(
   (Ref ref) => ConfiguracionRepository(ref.watch(dbProvider)),
 );
+
+final Provider<AlmacenAdjuntos> almacenAdjuntosProvider =
+    Provider<AlmacenAdjuntos>((Ref ref) => AlmacenAdjuntos());
+
+final Provider<ClienteSimulador> clienteSimuladorProvider =
+    Provider<ClienteSimulador>(
+  (Ref ref) => ClienteSimulador(ref.watch(configuracionRepoProvider)),
+);
+
+/// Instancia del servidor local; `main` la sobrescribe.
+final Provider<ServidorCapturas> servidorCapturasProvider =
+    Provider<ServidorCapturas>((Ref ref) {
+  throw UnimplementedError('El servidor se crea en main().');
+});
 
 /// Cuentas vigentes (incluye inactivas, para poder reactivarlas).
 final StreamProvider<List<Cuenta>> cuentasProvider =
@@ -95,4 +122,32 @@ final StreamProvider<List<TasaCambio>> tasasProvider =
 
 final StreamProvider<String> monedaBaseProvider = StreamProvider<String>(
   (Ref ref) => ref.watch(configuracionRepoProvider).watchMonedaBase(),
+);
+
+// ---------- Fase 2: capturas y canal ----------
+
+final StreamProvider<List<CapturaEntrante>> capturasProvider =
+    StreamProvider<List<CapturaEntrante>>(
+  (Ref ref) => ref.watch(capturasRepoProvider).watchTodas(),
+);
+
+final StreamProvider<int> capturasPendientesProvider =
+    StreamProvider<int>(
+  (Ref ref) => ref.watch(capturasRepoProvider).watchPendientes(),
+);
+
+final StreamProvider<String> tokenBotProvider = StreamProvider<String>(
+  (Ref ref) => ref.watch(configuracionRepoProvider).watchToken(),
+);
+
+final StreamProvider<int> puertoBotProvider = StreamProvider<int>(
+  (Ref ref) => ref.watch(configuracionRepoProvider).watchPuerto(),
+);
+
+final StreamProvider<bool> modoMockProvider = StreamProvider<bool>(
+  (Ref ref) => ref.watch(configuracionRepoProvider).watchModoMock(),
+);
+
+final StreamProvider<int?> capturaCuentaIdProvider = StreamProvider<int?>(
+  (Ref ref) => ref.watch(configuracionRepoProvider).watchCapturaCuentaId(),
 );

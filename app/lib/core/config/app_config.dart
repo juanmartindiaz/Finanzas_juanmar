@@ -7,11 +7,11 @@ abstract final class AppConfig {
   /// Nombre visible de la aplicación.
   static const String appName = 'Gestor Finanzas';
 
-  /// Versión de la aplicación (Fase 1).
-  static const String appVersion = '0.2.0';
+  /// Versión de la aplicación (Fase 2).
+  static const String appVersion = '0.3.0';
 
   /// Fase de desarrollo actual.
-  static const String fase = 'Fase 1';
+  static const String fase = 'Fase 2';
 
   /// Identificador del paquete Android.
   static const String packageName = 'com.juanmartin.gestor_finanzas';

@@ -165,49 +165,55 @@ OCR, audio, bot/WhatsApp, modo mock, presupuestos, deudas, créditos, metas, rec
 
 ---
 
-## Fase 2 — Captura
+## Fase 2 — Captura (parte 1 completada: 2.1 bandeja + 2.2 canal HTTP)
 
 ### Objetivo
 
 Registrar un gasto **sin teclear casi nada**: por foto del recibo, por nota de voz, por texto y por WhatsApp. Todo con revisión del usuario antes de guardar.
 
-### Alcance
+### Alcance de la parte 1 (hecha)
 
-- Servidor HTTP local de la app en `:8787` con `X-Bot-Token` y las 5 rutas del contrato ([API_CONTRACT.md](API_CONTRACT.md), §8).
-- Servidor local del bot en `:8788` con sus 4 rutas (§9).
-- Tabla `captura_entrante` y cola de salida con acuses; idempotencia por `id_mensaje`.
-- OCR de recibos con Google ML Kit Text Recognition (on-device), guardado de imagen y hash, y pantalla de revisión/confirmación.
-- Transcripción offline de audio en español con `whisper_edge`, dentro del APK.
-- Entrada por texto con atajos ("Almuerzo 18.500 efectivo").
-- Bot con Baileys en Termux, número secundario, que entrega texto/audio/foto y consulta la cola de salida.
-- Modo mock (`MOCK_BOT=true`) con bandeja simulada y botones para forzar errores.
-- Servicio en primer plano para que el servidor `:8787` siga vivo con la app cerrada.
+- Tabla `captura_entrante` (migración v1→v2 con copia previa y sin tocar datos existentes).
+- Servidor HTTP local de la app en `127.0.0.1:8787` (puerto configurable) con `X-Bot-Token`, límite 8 MB, idempotencia por `message_id` y errores JSON: `GET /api/salud`, `POST /api/capturas/texto`, `POST /api/capturas/foto`, `POST /api/audio`, `GET /api/pendientes`.
+- Parser de texto en español (gastos e ingresos, montos en varios formatos, categoría/subcategoría, etiquetas, cuenta por defecto, confianza y faltantes).
+- Bandeja `/bandeja` con pendientes/listos arriba e historial abajo, badge en el dashboard y captura manual de texto.
+- Revisión `/bandeja/:id` reutilizando el formulario de transacción de la Fase 1: confirmar crea la transacción real (con `origen` bot o manual) o descartar sin crear nada.
+- Simulador de bot (`MOCK_BOT`) que hace peticiones HTTP reales al servidor local con imagen y audio elegibles desde el archivo.
+- Ajustes: Canal bot (token ver/copiar/regenerar, puerto, MOCK_BOT, estado del servidor) y Capturas (cuenta por defecto).
 
-### Entregables
+### Pendiente para cerrar la Fase 2 (prompts siguientes)
+
+- **2.3:** bot real con Baileys en Termux y cola de salida (`mensaje_salida`).
+- **2.4:** OCR de recibos con ML Kit.
+- **2.5:** transcripción offline de audio con `whisper_edge`.
+- **2.6:** servicio en primer plano para que el servidor siga vivo con la app cerrada.
+
+### Entregables de la parte 1
 
 | Entregable | Dónde |
 |---|---|
-| Servidor HTTP de la app y validación del token | `app/lib/services/whatsapp_bridge/` |
-| Cliente del contrato (envío, outbox, config) | `app/lib/data/api/` |
-| OCR y almacenamiento de recibos | `app/lib/services/ocr/` |
-| Transcripción de audio | `app/lib/services/audio/` |
-| Bandeja de capturas y revisión | `app/lib/features/capture/` |
-| Bot: conexión, entrega y cola | `whatsapp_bot/index.js` + `whatsapp_bot/src/` (se crea aquí) |
-| Modo mock | `app/lib/services/whatsapp_bridge/` + `app/lib/core/config/` |
+| Tabla y migración v1→v2, ruta única de la base y copia `.backup` | `app/lib/data/database/` |
+| Servidor HTTP, token, límites, multipart y adjuntos | `app/lib/services/whatsapp_bridge/` |
+| Repositorio de capturas y proveedores | `app/lib/data/repositories/capturas_repository.dart` |
+| Parser de texto en español | `app/lib/domain/parsers/` |
+| Bandeja, revisión y captura manual | `app/lib/features/bandeja/` + formulario de transacción reutilizado |
+| Simulador de bot y ajustes del canal | `app/lib/features/settings/` |
+| Pruebas: parser, migración, HTTP y bandeja | `app/test/` |
 
-### Criterio de terminado
+### Criterio de terminado de la parte 1
 
-1. En el emulador con modo mock, un mensaje simulado de texto crea una captura pendiente y se confirma en la app; el aviso de "enviado" aparece en la bandeja simulada.
-2. En el teléfono real, con el bot en Termux y número secundario, enviar "Taxi 9.800" por WhatsApp produce la captura y la confirmación llega de vuelta.
-3. Una foto de recibo produce texto OCR editable y, al confirmar, una transacción enlazada al recibo.
-4. Una nota de voz en español se transcribe sin internet y llena el borrador.
-5. Reenviar el mismo `id_mensaje` **no** duplica la captura.
-6. Una petición sin token responde `401 NO_AUTORIZADO`; un cuerpo de 12 MB responde `413`.
-7. Con la app cerrada, el bot puede seguir entregando mensajes (servicio en primer plano activo).
+1. Migración v1→v2 sin pérdida de datos, con copia `.backup` en la misma ruta de la base.
+2. Bandeja con capturas por estado y badge de pendientes en el dashboard.
+3. Texto capturado dentro de la app → parser → propuesta → confirmar → transacción creada.
+4. Los endpoints responden `201`, `401` sin token, `409` duplicado, `413` en archivo > 8 MB y `GET /api/salud` sin token.
+5. Simulador de bot con texto, imagen y audio usando el servidor real; la captura aparece en la bandeja.
+6. Confirmar una captura del simulador crea la transacción con `origen = bot`; descartar no crea transacción.
+7. La app funciona **100 % offline**: con modo avión, el simulador sigue entregando al servidor de loopback.
+8. `flutter analyze` limpio y `flutter test` en verde (68 pruebas).
 
-### Fuera de alcance
+### Fuera de alcance de la parte 1
 
-Presupuestos, deudas, créditos, metas, recurrentes, reportes gráficos, PDF, Drive y conversión automática de divisas.
+Bot real, OCR, transcripción de audio, servicio en primer plano, reportes gráficos, PDF, Drive, presupuestos, deudas, créditos, metas, recurrentes y conversión automática de divisas.
 
 ### Riesgos
 
@@ -375,7 +381,7 @@ Al terminar cada fase se anota aquí la fecha, el criterio cumplido y cualquier 
 |---|---|---|
 | 0 | 2026-11-23 | Ninguna: entorno, documentación y esqueletos entregados |
 | 1 | 2026-11-23 | Ninguna: MVP local con Drift, CRUD de cuentas/categorías/etiquetas, transacciones manuales, dashboard multimoneda y 37 pruebas en verde |
-| 2 | — | — |
+| 2 | 2026-11-24 | Parte 1 cerrada (bandeja + canal HTTP + parser + simulador). Desviación planificada: bot Baileys, OCR, transcripción y foreground service pasan a prompts posteriores |
 | 3 | — | — |
 | 4 | — | — |
 | 5 | — | — |

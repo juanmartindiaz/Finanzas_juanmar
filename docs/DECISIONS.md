@@ -44,6 +44,13 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-027 | Semilla de categorías | Semilla una sola vez y predefinidas editables/borrables | Aceptada |
 | ADR-028 | Catálogo de monedas | Lista fija en código, sin tabla | Aceptada |
 | ADR-029 | Borrado lógico | Índices únicos parciales sobre registros vigentes | Aceptada |
+| ADR-030 | API de capturas | Rutas v2 sin prefijo de versión; solo `/api/salud` sin token | Aceptada |
+| ADR-031 | Bandeja de capturas | Ninguna transacción sin confirmación humana | Aceptada |
+| ADR-032 | Simulador de bot | `MOCK_BOT` hace HTTP real a `127.0.0.1:8787` | Aceptada |
+| ADR-033 | Adjuntos de captura | Carpeta privada `capturas/`, sin cifrado | Aceptada |
+| ADR-034 | Parser de texto | Heurístico, con confianza y campos faltantes | Aceptada |
+| ADR-035 | Cuenta por defecto | Configurable en Ajustes (`captura_cuenta_id`) | Aceptada |
+| ADR-036 | Servidor de capturas | Loopback sin servicio en primer plano (parte 1) | Aceptada |
 
 ---
 
@@ -394,6 +401,92 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Contexto | Con borrado lógico, un nombre "borrado" seguiría ocupando el índice y no se podría volver a usar, aunque el usuario ya no lo vea. |
 | Consecuencias | Se puede reutilizar un nombre después de borrar; los índices se crean a mano en la migración porque Drift no los genera solo; dos registros con el mismo nombre pueden convivir si uno está eliminado. |
 | Alternativas descartadas | Índice único global (impide reutilizar nombres); quitar el único y validar solo en la app (carreras y datos sucios). |
+
+## ADR-030 — API v2 de capturas con rutas sin prefijo de versión
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-030 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | Las rutas aprobadas son **`/api/salud`, `/api/capturas/texto`, `/api/capturas/foto`, `/api/audio` y `/api/pendientes`**; se retira el diseño `/api/v1/inbox`, que nunca se implementó. Solo `/api/salud` va **sin token**, y un duplicado responde **`409`** con el `captura_id`. |
+| Contexto | El bot real todavía no existe y la Fase 2 parte 1 necesitaba un contrato que se pudiera probar en el emulador; el dueño aprobó rutas exactas, sin versión en la URL, para que el simulador y el futuro bot usen la misma dirección. |
+| Consecuencias | Un solo juego de rutas para probar y para producción; la versión viaja en el documento (v2), no en la ruta; si un cambio es incompatible se publicarán rutas `/api/v2/...`; el `409` con `captura_id` permite al bot responder sin adivinar. |
+| Alternativas descartadas | Mantener `/api/v1` en la ruta (una versión que nunca llegó a usarse); publicar ambas (dos juegos de rutas para un canal local). |
+| Nota | Esta decisión **reemplaza el versionado `/api/v1` de ADR-010**; la autenticación, el loopback y la forma de error de ADR-010 siguen vigentes. |
+
+## ADR-031 — La bandeja nunca crea transacciones sin confirmación humana
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-031 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | **Reafirma ADR-023 para la Fase 2:** la bandeja nunca crea una transacción sin confirmación humana. El parser solo propone (`estado = 'listo'` con `propuesta_json`); la transacción nace únicamente al pulsar **Confirmar**; `transaccion_id` en la captura permite trazar la confirmación y bloquear la doble confirmación. |
+| Contexto | El texto llega ambiguo y en la parte 1 las fotos y los audios ni siquiera tienen OCR o transcripción; cualquier guardado automático llenaría los reportes de errores. |
+| Consecuencias | Los datos entran solo cuando el usuario los aprueba; hay un paso extra por captura; el `transaccion_id` permite auditar de dónde salió cada movimiento e impide confirmar dos veces. |
+| Alternativas descartadas | Guardado automático (los errores contaminan los reportes); confirmación solo visual sin `transaccion_id` (no se puede trazar ni impedir el doble guardado). |
+
+## ADR-032 — El simulador de bot usa HTTP real
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-032 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | En la Fase 2, **`MOCK_BOT` es un simulador dentro de la app** que hace peticiones **HTTP reales** a `127.0.0.1:8787` con el token, como lo haría el bot. El mock sin red del contrato anterior queda para el bot del **Prompt 3**. |
+| Contexto | El emulador no tiene WhatsApp ni Termux, y el objetivo de la parte 1 era probar el servidor real, no un atajo en memoria. |
+| Consecuencias | El servidor, el token, la idempotencia y los límites se prueban de verdad desde el emulador; el simulador se marca siempre en pantalla y debe mantenerse alineado con el contrato. |
+| Alternativas descartadas | Mock en memoria (no prueba el servidor); bot falso en otra máquina (más piezas y más red). |
+| Nota | Esta decisión **reemplaza para la Fase 2 la definición de mock "sin red" de ADR-011**. En el Prompt 3 se redefine el mock del proceso Node (ese sí sin red). |
+
+## ADR-033 — Adjuntos de captura en carpeta privada `capturas/`, sin cifrado
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-033 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | Los adjuntos de captura se guardan en la **carpeta privada `capturas/`**, sin cifrado; la base guarda solo la **ruta relativa** en `adjunto_path`. Al descartar la captura se ofrece borrar el archivo; la base no guarda binarios. |
+| Contexto | La base no debe inflarse con megabytes de fotos y audios, y ADR-007 ya decidió no cifrar los datos. |
+| Consecuencias | La base queda liviana y los adjuntos se pueden borrar sin tocar filas; si se pierde la carpeta se pierden los adjuntos; quien tenga root o una copia del sistema puede verlos (riesgo aceptado). |
+| Alternativas descartadas | Guardar el binario en la base (se infla y se vuelve lenta); cifrar los adjuntos (contradice ADR-007). |
+
+## ADR-034 — Parser heurístico con confianza y faltantes
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-034 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | El parser de texto es **heurístico**: devuelve tipo, monto, categoría/subcategoría, etiquetas, cuenta, `confianza` (**alta/media/baja**) y campos faltantes. Si no entiende algo, deja la captura en `listo` con confianza baja y la UI la resalta. |
+| Contexto | El usuario escribe rápido y en español informal ("gasté 18.500 en mercado"); un parser estricto lo obligaría a escribir de una forma fija. |
+| Consecuencias | El formulario se prellena sin bloquear la captura; el usuario siempre revisa; las heurísticas se ajustan con el uso y deben probarse como Dart puro. |
+| Alternativas descartadas | Parser estricto que rechaza lo que no entiende (frustra al usuario); IA en la nube (rompe el offline de ADR-004). |
+
+## ADR-035 — Cuenta por defecto para capturas
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-035 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | Las capturas usan una **cuenta por defecto** configurable en Ajustes (clave `captura_cuenta_id`); si no está definida, la propuesta no trae cuenta y el usuario la elige al revisar. |
+| Contexto | Casi todas las capturas van a la misma cuenta, y pedirla en cada mensaje es trabajo repetido. |
+| Consecuencias | Menos toques al confirmar; la cuenta es solo una propuesta que se puede cambiar; si la cuenta configurada se borra o se inactiva, la app avisa y la captura queda sin cuenta. |
+| Alternativas descartadas | Usar siempre la primera cuenta (puede ser la equivocada); obligar a configurar la cuenta antes de capturar (bloquea el primer uso). |
+
+## ADR-036 — Servidor loopback sin servicio en primer plano (parte 1)
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-036 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | En la Fase 2 parte 1 el servidor **loopback** arranca con la app y muere con ella: **no hay servicio en primer plano**. Si Android mata la app, el bot no puede entregar mensajes hasta que se reabra. Se resuelve en la **Fase 2.6**. |
+| Contexto | Un *foreground service* exige permisos y una notificación permanente que todavía no se quiso mostrar; primero se valida el canal. |
+| Consecuencias | La app no gasta batería escuchando de fondo; el bot debe tratar el corte como `NO_DISPONIBLE` y reintentar; la limitación queda documentada y visible en Ajustes. |
+| Alternativas descartadas | Foreground service ya (más permisos y notificación permanente antes de tiempo); no tener servidor (no hay canal). |
 
 ---
 

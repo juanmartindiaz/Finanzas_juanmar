@@ -11,10 +11,11 @@ uso personal. Consta de **dos componentes**:
    los pasará a la app por HTTP local, y enviará los mensajes que la app le pida (por ejemplo,
    los reportes diarios). Se conecta con Baileys, sin la API oficial de Meta.
 
-> **Estado actual: Fase 1 — MVP local completada.**
-> Ya se pueden registrar cuentas, categorías, subcategorías, etiquetas, ingresos, gastos y
-> transferencias, y ver el dashboard con saldos, subtotales por moneda y total consolidado.
-> El bot de WhatsApp, el OCR y el audio llegan en la Fase 2.
+> **Estado actual: Fase 2 parte 1 completada** (bandeja de capturas + canal HTTP local). Ya se
+> pueden registrar cuentas, categorías, etiquetas, ingresos, gastos y transferencias, ver el
+> dashboard, **capturar por texto** con parser en español y **recibir capturas por HTTP** del
+> simulador de bot. El bot real de WhatsApp, el OCR y la transcripción llegan en prompts
+> posteriores.
 
 ---
 
@@ -46,9 +47,14 @@ App finanzas/                  ← raíz del repo
 
 ---
 
-## 2. Qué se puede hacer hoy (Fase 1)
+## 2. Qué se puede hacer hoy (Fase 2 parte 1)
 
 | Pantalla | Ruta | Qué hace |
+|---|---|---|
+| Bandeja de capturas | `/bandeja` | Pendientes/listas arriba, historial abajo; captura manual de texto y badge de pendientes en el dashboard |
+| Revisión de captura | `/bandeja/:id` | Reutiliza el formulario de transacción: confirmar crea la transacción real; descartar no crea nada |
+| Simulador de bot | `/ajustes/simulador` | Envía texto, imagen o audio al servidor local por HTTP real (como el bot) |
+| Canal bot | `/ajustes/canal-bot` | Token (ver/copiar/regenerar), puerto, MOCK_BOT y estado del servidor |
 |---|---|---|
 | Dashboard | `/` | Total consolidado en la moneda base, subtotales por moneda, saldos agrupados por tipo (Efectivo, Bancos, Tarjetas, Ahorro, Inversión) y últimas 10 transacciones. Botón **+** para nuevo movimiento |
 | Cuentas | `/cuentas` | Crear, editar, activar/desactivar y borrar cuentas de los 7 tipos. Borrar una cuenta con movimientos ofrece desactivarla |
@@ -143,7 +149,7 @@ Captura real de la Fase 1:
 ```powershell
 cd app
 flutter analyze     # "No issues found!"
-flutter test        # "All tests passed!" (37 pruebas)
+flutter test        # "All tests passed!" (68 pruebas)
 ```
 
 ### Probar los flujos principales (5 minutos)
@@ -165,6 +171,20 @@ flutter test        # "All tests passed!" (37 pruebas)
    archivarlas o borrarlas.
 9. **Multimoneda**: crea una cuenta en USD con saldo; en Ajustes → Monedas registra la tasa
    `1 USD = 4.000 COP` y verás el total consolidado actualizado.
+
+### Probar la captura (Fase 2 parte 1)
+
+1. **Captura manual por texto**: Dashboard → icono de bandeja → *Capturar texto* → escribe
+   `gasté 18.500 en mercado` → *Procesar*. Se abre la revisión con la propuesta; ajusta y
+   **Confirmar**. La transacción se crea y la captura queda *Confirmado*.
+2. **Simulador de bot**: Ajustes → *Canal bot* (verifica que MOCK_BOT esté activo y el servidor
+   escuchando) → *Abrir simulador de bot* → envía un texto, una imagen y un audio. Cada envío
+   usa HTTP real al `127.0.0.1:8787` y aterriza en la bandeja.
+3. **Health check**: `curl http://127.0.0.1:8787/api/salud` (en el teléfono/emulador, sin token).
+4. **Offline**: activa el modo avión del emulador y repite el paso 2; el canal de loopback sigue
+   funcionando, sin internet.
+5. **Token y límites**: sin cabecera `X-Bot-Token` el servidor responde `401`; un archivo de más
+   de 8 MB responde `413`; reenviar el mismo `message_id` responde `409` y no duplica.
 
 ---
 
@@ -216,9 +236,9 @@ formulario, ajustes, categorías y monedas.
 
 | Fase | Qué se construye | Estado |
 |---|---|---|
-| **0** | Fundación: entorno, docs, esqueleto en emulador, bot esqueleto, Git | ✅ completada |
-| **1** | MVP local: cuentas, categorías/subcategorías/etiquetas, transacciones manuales, dashboard con saldos | ✅ **actual** |
-| **2** | Captura: OCR de recibos, audio offline en español, texto, integración con bot WhatsApp (modo mock en emulador) | — |
+| **0** | Fundación | ✅ completada |
+| **1** | MVP local | ✅ completada |
+| **2** | Captura: bandeja + canal HTTP (parte 1); bot real, OCR, audio y foreground service (pendiente) | ✅ parte 1 / ⏳ resto |
 | **3** | Presupuestos, deudas con personas y créditos, metas, recurrentes con notificaciones | — |
 | **4** | Reportes con gráficas, PDF, reportes diarios por WhatsApp, conversión diaria de monedas, respaldo/restauración en Google Drive | — |
 | **5** | Endurecimiento, pruebas en teléfono real, APK final, guía del bot en Termux, PIN/biometría | — |
@@ -257,7 +277,9 @@ El detalle y los motivos están en [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## 12. Lo que **no** existe todavía (a propósito)
 
-- OCR de recibos, transcripción de audio, bot de WhatsApp y modo mock (Fase 2).
+- Bot real de WhatsApp con Baileys y cola de salida (prompt siguiente).
+- OCR de recibos y transcripción de audio (fases 2.4/2.5); por ahora solo se guardan.
+- Servicio en primer plano: el servidor se apaga con la app (fase 2.6).
 - Presupuestos, deudas, créditos, metas y recurrentes (Fase 3).
 - Reportes, PDF, conversión automática de monedas y respaldo en Drive (Fase 4).
 - PIN/biometría y APK firmado de entrega (Fase 5).
