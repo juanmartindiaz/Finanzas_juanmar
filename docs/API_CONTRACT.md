@@ -445,17 +445,20 @@ Variantes:
 
 ---
 
-## 12. Ciclo de vida del servidor (limitación de esta parte)
+## 12. Ciclo de vida del servidor
 
-- El servidor arranca **cuando la app se abre** y se detiene cuando la app se cierra.
-- **No hay servicio en primer plano todavía** (eso es la Fase 2.6): si Android mata la app,
-  el bot no puede entregar mensajes hasta que el usuario la vuelva a abrir.
-- Mientras la app está en segundo plano el servidor puede seguir vivo un rato, pero **no está
-  garantizado**; el bot debe tratar el error de conexión como `NO_DISPONIBLE` y reintentar.
+- El servidor arranca cuando la app se abre y queda protegido por un **servicio en primer plano**
+  con notificación persistente (ADR-042). Sigue escuchando con la app en segundo plano e incluso
+  después de cerrarla desde la pantalla de recientes.
+- Si el usuario **fuerza la detención** desde Ajustes de Android, el proceso muere y el servidor
+  se apaga hasta que vuelva a abrir la app. Lo mismo tras reiniciar el teléfono: hay que abrir la
+  app una vez para que arranque el servicio.
+- Mientras el servidor esté vivo, el bot entrega en el momento; si no, encola y reintenta cada
+  30 s.
 - El estado del servidor (escuchando / error / puerto ocupado) se muestra en Ajustes → Canal bot.
 
-Está documentado como limitación aceptada en [ARCHITECTURE.md](ARCHITECTURE.md) y
-[DECISIONS.md](DECISIONS.md) (ADR-036).
+Documentado en [ARCHITECTURE.md](ARCHITECTURE.md) y [DECISIONS.md](DECISIONS.md) (ADR-042,
+que reemplaza la limitación de ADR-036).
 
 ---
 

@@ -1,6 +1,6 @@
 # Arquitectura de Gestor Finanzas
 
-**Fase actual: 2 parte 1 (en implementación; este documento describe el estado al cerrar esta entrega).** En la Fase 1 quedaron implementados la base SQLite, las cuentas, las categorías y etiquetas, las transacciones manuales y el dashboard; en la **Fase 2 parte 1** se suman la **bandeja de capturas**, el **parser de texto en español** y el **servidor local `:8787`**. Siguen sin existir el bot real de WhatsApp (solo esqueleto), el OCR, la transcripción de audio y el servicio en primer plano.
+**Fase actual: 2 parte 2 (bot real, registro directo y servicio en primer plano).** En la Fase 1 quedaron implementados la base SQLite, las cuentas, las categorías y etiquetas, las transacciones manuales y el dashboard; en la **Fase 2** se suman la **bandeja de capturas**, el **parser de texto en español**, el **servidor local `:8787`**, el **bot de WhatsApp** y el **servicio en primer plano**. Siguen sin existir el OCR y la transcripción de audio.
 
 **Para quién es este documento:** para el dueño del producto (que no programa) y para quien retome el código.
 
@@ -208,10 +208,10 @@ El archivo se guarda en la carpeta privada `capturas/`; la foto queda `listo` si
 | Primer arranque | Crea la base SQLite y aplica las migraciones de Drift; el bloqueo con PIN/biometría llega en la Fase 5 |
 | Apertura normal | Dashboard; el servidor HTTP arranca y escucha en `:8787` |
 | Primer plano | Todas las funciones disponibles y el servidor local activo |
-| Segundo plano | Android puede pausar el proceso. El servidor local puede dejar de responder hasta que la app vuelva |
+| Segundo plano / cerrada desde recientes | El servicio en primer plano y el motor Flutter en caché mantienen el servidor local activo (ADR-042) |
 | Cierre forzado | Los datos ya están guardados y el servidor se apaga; al reabrir, nada se pierde |
 
-**Decisión de diseño:** el servidor HTTP arranca con la app y se detiene al cerrarla. **No hay servicio en primer plano todavía** (Fase 2.6): si Android mata la app, el bot no puede entregar mensajes hasta que se vuelva a abrir y debe reintentar. El puerto es configurable y, si está ocupado, Ajustes lo avisa y la app sigue funcionando **sin servidor**.
+**Decisión de diseño:** el servidor HTTP arranca con la app y queda protegido por un servicio en primer plano con notificación persistente (ADR-042); el motor Flutter se mantiene en caché para que el servidor siga vivo con la app en segundo plano o cerrada desde recientes. Si el usuario fuerza la detención o reinicia el teléfono, debe abrir la app una vez. El puerto es configurable y, si está ocupado, Ajustes lo avisa y la app sigue funcionando **sin servidor**.
 
 ### 8.2 Bot en Termux
 
@@ -294,7 +294,7 @@ Nadie más que el dueño usa el teléfono ni la app; por eso el esfuerzo se pone
 |---|---|---|
 | El emulador no tiene WhatsApp | No se puede probar el canal real en desarrollo | Se prueba con el simulador de la app (`MOCK_BOT`, HTTP real a `127.0.0.1:8787`) |
 | Bot y app comparten CPU y batería | Un reporte o una descarga pueden tardar | Trabajos cortos, sin bucles pesados, reintentos suaves |
-| App cerrada → servidor apagado (sin *foreground service* aún; Fase 2.6) | Android puede matar el proceso y el bot no puede entregar hasta que la app se reabra | Servicio en primer plano con notificación (Fase 2.6); el bot reintenta |
+| App cerrada desde recientes → el servidor sigue vivo | El servicio en primer plano mantiene el proceso y el motor cacheado (ADR-042) | Solo se detiene con force-stop o reinicio; se reabre la app una vez |
 | Termux y el "phantom process killer" (Android 12+) | El bot puede morir solo | `termux-wake-lock`, batería sin restricciones, guía en Fase 5 |
 | WhatsApp no permite dos sesiones del mismo número | El bot necesita número secundario | Número aparte, documentado en Fase 5 |
 | Baileys no es la API oficial | El número puede ser bloqueado | Número secundario dedicado, sin envíos masivos, solo el dueño escribe |
@@ -390,7 +390,7 @@ Las carpetas `build/`, `.dart_tool/` y `.idea/` las genera la herramienta y no s
 - **Bot de WhatsApp**: solo el esqueleto en `whatsapp_bot/`; Baileys **no está instalado** (llega en el Prompt 3).
 - **Servidor del bot (`:8788`)**: no existe. El servidor local de la app (`:8787`) sí.
 - **OCR y transcripción de audio**: las fotos y los audios se guardan, pero sin leer ni transcribir (fases 2.4 y 2.5).
-- **Servicio en primer plano**: no existe (Fase 2.6), así que el servidor se apaga con la app.
+- **Servicio en primer plano**: activo mientras la app esté instalada y se haya abierto al menos una vez; mantiene el servidor vivo en segundo plano y con la tarea cerrada (ADR-042).
 - **Cola de salida (`mensaje_salida`)**: no existe; llega en el Prompt 3 con el bot real.
 - **Reportes, PDF, notificaciones y Google Drive**: sus paquetes se instalan cuando llegue su fase.
 - **Presupuestos, deudas, créditos, metas y recurrentes**: solo están documentados en [DATA_MODEL.md](DATA_MODEL.md).

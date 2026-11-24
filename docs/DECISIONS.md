@@ -56,6 +56,7 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-039 | Autorización del bot | Sin TOFU: el número autorizado se configura a mano; sin él no se procesa nada | Aceptada |
 | ADR-040 | Filtro de texto del bot | Solo se reenvían textos con un monto; la charla no ensucia la bandeja | Aceptada |
 | ADR-041 | Registro directo desde el bot | Con monto+tipo+cuenta se registra sin revisión; si falta algo, el bot pregunta | Aceptada |
+| ADR-042 | Servicio en primer plano | Notificación persistente + motor Flutter en caché; el servidor vive en segundo plano | Aceptada |
 
 ---
 
@@ -554,6 +555,18 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Contexto | El dueño pidió que registrar por WhatsApp no exija abrir la app y confirmar; la cuenta se preguntaba siempre en la práctica. Se mantiene la confirmación humana solo para lo que el parser no puede completar con una pregunta corta y para los adjuntos sin OCR. |
 | Consecuencias | Un fallo del parser puede crear un movimiento con datos incorrectos; por eso el bot responde con el resumen, se puede editar en la bandeja y la cuenta nunca se inventa: se pregunta. El estado de la conversación se guarda en `cola/conversacion.json` para sobrevivir reinicios. ADR-031 sigue vigente para capturas manuales, fotos y audios. |
 | Alternativas descartadas | Mantener confirmación obligatoria (más fricción, ya rechazada por el dueño); elegir la primera cuenta automáticamente (riesgo de registrar en la cuenta equivocada); preguntar la categoría (se resuelve con Otros y edición posterior). |
+
+## ADR-042 — Servicio en primer plano y motor Flutter en caché
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-042 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | La app arranca un **servicio en primer plano** (`ServidorService`, tipo `specialUse`) con notificación persistente y mantiene el **motor Flutter en `FlutterEngineCache`** con `shouldDestroyEngineWithHost = false`. Así el servidor HTTP sigue atendiendo con la app en segundo plano y después de cerrar la tarea desde recientes. El servicio toma un `PARTIAL_WAKE_LOCK` para evitar que la CPU se suspenda. |
+| Contexto | El bot de WhatsApp no puede depender de que la app esté abierta; el dueño pidió registrar por chat sin abrir la app. Android mata la actividad al cerrar la tarea y, sin motor cacheado, el isolate de Dart y el servidor desaparecen aunque el servicio siga vivo. |
+| Consecuencias | Hay una notificación permanente mientras el servidor está activo (requisito de Android). Si el usuario **fuerza la detención** o reinicia el teléfono, debe abrir la app una vez; el servicio no arranca por sí solo tras un force-stop. El wake lock consume algo de batería, acotado al proceso. Reemplaza la limitación de ADR-036. |
+| Alternativas descartadas | Dejar la app abierta (fricción que el dueño rechazó); solo `START_STICKY` sin motor cacheado (el servidor muere con la tarea); mover la base y el servidor a Kotlin (duplicaría lógica y migraciones); ejecutar todo en Termux (la base vive en la app). |
 
 ## Decisiones que no se cambian sin el dueño
 

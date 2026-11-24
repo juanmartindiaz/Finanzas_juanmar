@@ -10,8 +10,10 @@ historial editable (y para revisar fotos/audios, que aún no tienen OCR ni trans
 Repositorio: <https://github.com/juanmartindiaz/Finanzas_juanmar>
 
 > **Estado:** Fase 2 parte 2 (Prompt 3). Sin OCR (2.4), sin transcripción de
-> audio (2.5), sin servicio en primer plano en la app (2.6) y sin cola de
-> salida/reportes (`mensaje_salida` es Fase 4).
+> audio (2.5) y sin cola de salida/reportes (`mensaje_salida` es Fase 4).
+> La app mantiene el servidor vivo en segundo plano con una notificación
+> persistente (ADR-042); no hace falta tenerla abierta, solo instalada y abierta
+> una vez tras reiniciar el teléfono.
 
 ---
 

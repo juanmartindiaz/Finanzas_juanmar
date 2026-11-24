@@ -169,7 +169,7 @@ OCR, audio, bot/WhatsApp, modo mock, presupuestos, deudas, créditos, metas, rec
 
 ### Objetivo
 
-Registrar un gasto **sin teclear casi nada**: por foto del recibo, por nota de voz, por texto y por WhatsApp. Todo con revisión del usuario antes de guardar.
+Registrar un gasto **sin teclear casi nada**: por foto del recibo, por nota de voz, por texto y por WhatsApp. El texto de WhatsApp se registra automáticamente; fotos y audios se revisan en la bandeja (aún sin OCR ni transcripción).
 
 ### Alcance de la parte 1 (hecha)
 
@@ -186,13 +186,12 @@ Registrar un gasto **sin teclear casi nada**: por foto del recibo, por nota de v
 - **2.3:** bot real con Baileys en Termux (QR, autorización por número, cola persistente, logs) y **registro directo**: si el parser obtiene monto+tipo+cuenta, la transacción se crea sin revisión; si falta cuenta/monto/tipo, el bot lo pregunta por chat. La bandeja queda como historial editable. Ver ADR-041.
 - **2.4:** OCR de recibos con ML Kit.
 - **2.5:** transcripción offline de audio con `whisper_edge`.
-- **2.6:** servicio en primer plano para que el servidor siga vivo con la app cerrada.
+- **2.6:** servicio en primer plano (implementado): la app deja una notificación y el servidor sigue vivo con la app en segundo plano o cerrada desde recientes (ADR-042).
 
 ### Pendiente para cerrar la Fase 2 (prompts siguientes)
 
 - **2.4:** OCR de recibos con ML Kit.
 - **2.5:** transcripción offline de audio con `whisper_edge`.
-- **2.6:** servicio en primer plano para que el servidor siga vivo con la app cerrada.
 
 ### Entregables de la parte 1
 
