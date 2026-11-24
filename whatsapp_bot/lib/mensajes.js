@@ -19,6 +19,21 @@ export function normalizarNumero(jid) {
   return String(jid ?? '').split('@')[0].replace(/\D/g, '');
 }
 
+/**
+ * WhatsApp puede entregar el mensaje con un LID (identidad interna) en
+ * `remoteJid` y el número real en `remoteJidAlt`. Para autorizar y responder
+ * siempre preferimos el JID con número (`@s.whatsapp.net`).
+ */
+export function elegirJidRemitente(key = {}) {
+  const candidatos = [key.remoteJid, key.remoteJidAlt];
+  for (const jid of candidatos) {
+    if (typeof jid === 'string' && jid.endsWith('@s.whatsapp.net')) {
+      return jid;
+    }
+  }
+  return key.remoteJid ?? key.remoteJidAlt ?? null;
+}
+
 export function idCorto(capturaId) {
   const texto = String(capturaId ?? '');
   return texto.length <= 4 ? texto : texto.slice(-4);

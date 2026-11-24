@@ -160,12 +160,16 @@ chmod +x ~/.termux/boot/start-bot.sh
 
 ```bash
 cd ~/gestor_finanzas/whatsapp_bot
-tail -f logs/bot.log
+ls logs
+tail -n 80 logs/bot-*.log
 ```
 
 Los logs también salen por stdout. Archivo diario `logs/bot-AAAA-MM-DD.log` con
 7 días de retención. El contenido de los mensajes **no** se registra salvo que
 ejecutes con `DEBUG=1`.
+
+> Si usas el arranque con Termux:Boot del §9, la salida cruda de arranque también
+> se guarda en `logs/bot.log`; para el día a día usa el archivo con fecha.
 
 ## 11. Reiniciar la sesión de WhatsApp
 

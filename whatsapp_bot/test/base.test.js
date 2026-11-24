@@ -2,9 +2,34 @@ import { describe, expect, test } from 'vitest';
 
 import { debeReintentar, siguienteEspera } from '../lib/reconexion.js';
 import { cargarConfig, guardarConfig } from '../lib/config.js';
+import { elegirJidRemitente, normalizarNumero } from '../lib/mensajes.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+describe('identidades LID', () => {
+  test('prefiere el número real (remoteJidAlt) sobre el LID', () => {
+    const jid = elegirJidRemitente({
+      remoteJid: '69072452640988@lid',
+      remoteJidAlt: '573113101282@s.whatsapp.net',
+      addressingMode: 'lid',
+    });
+    expect(jid).toBe('573113101282@s.whatsapp.net');
+    expect(normalizarNumero(jid)).toBe('573113101282');
+  });
+
+  test('usa remoteJid si ya es un número', () => {
+    expect(
+      elegirJidRemitente({ remoteJid: '573001234567@s.whatsapp.net' }),
+    ).toBe('573001234567@s.whatsapp.net');
+  });
+
+  test('conserva el LID si no hay número alternativo', () => {
+    expect(elegirJidRemitente({ remoteJid: '69072452640988@lid' })).toBe(
+      '69072452640988@lid',
+    );
+  });
+});
 
 describe('reconexión', () => {
   test('backoff exponencial con tope de 60 s', () => {

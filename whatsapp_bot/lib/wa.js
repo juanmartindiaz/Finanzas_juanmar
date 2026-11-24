@@ -1,5 +1,6 @@
 import qrcode from 'qrcode-terminal';
 
+import { elegirJidRemitente } from './mensajes.js';
 import { debeReintentar, siguienteEspera } from './reconexion.js';
 
 const MIME_EXTENSION = {
@@ -120,7 +121,8 @@ export class TransporteBaileys {
   #normalizar(mensaje) {
     const key = mensaje?.key;
     if (!key?.remoteJid || key.fromMe) return null;
-    const jid = key.remoteJid;
+    const jidOriginal = key.remoteJid;
+    const jid = elegirJidRemitente(key);
     const contenido = mensaje.message ?? {};
     let tipo = 'otro';
     let texto = null;
@@ -141,11 +143,14 @@ export class TransporteBaileys {
     return {
       id: key.id,
       remitente: jid,
+      jidOriginal,
+      lid: jidOriginal.endsWith('@lid') ? jidOriginal : null,
       tipo,
       texto,
       timestamp: Number(mensaje.messageTimestamp) * 1000 || Date.now(),
-      esGrupo: jid.endsWith('@g.us'),
-      esEstado: jid === 'status@broadcast' || jid.endsWith('@broadcast'),
+      esGrupo: jidOriginal.endsWith('@g.us'),
+      esEstado:
+        jidOriginal === 'status@broadcast' || jidOriginal.endsWith('@broadcast'),
       crudo: mensaje,
     };
   }

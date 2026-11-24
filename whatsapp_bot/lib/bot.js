@@ -99,7 +99,8 @@ export function crearBot({
     }
     if (normalizarNumero(evento.remitente) !== numeroAutorizado()) {
       logger.info(
-        `Mensaje ignorado de remitente no autorizado: ${normalizarNumero(evento.remitente)}`,
+        `Mensaje ignorado de remitente no autorizado: ${normalizarNumero(evento.remitente)}` +
+          (evento.lid ? ` (LID ${evento.lid})` : ''),
         'filtro',
       );
       return;
