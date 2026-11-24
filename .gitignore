@@ -75,3 +75,11 @@ temp/
 
 # ---------- Documentos temporales ----------
 ~$*
+
+# ---------- Bot WhatsApp (Fase 2.3) ----------
+whatsapp_bot/config.json
+whatsapp_bot/auth/
+whatsapp_bot/cola/pendientes/
+whatsapp_bot/cola/entregados/
+whatsapp_bot/logs/
+whatsapp_bot/node_modules/

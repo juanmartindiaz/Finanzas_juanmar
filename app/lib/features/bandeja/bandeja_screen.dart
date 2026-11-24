@@ -200,7 +200,8 @@ class _ItemCaptura extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
                   ),
-                if (captura.propuesta?.faltantes.isNotEmpty ?? false)
+                if (captura.estaAbierta &&
+                    (captura.propuesta?.faltantes.isNotEmpty ?? false))
                   Chip(
                     label: Text(
                       'falta: ${captura.propuesta!.faltantes.join(', ')}',

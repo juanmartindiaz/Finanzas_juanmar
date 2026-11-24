@@ -53,6 +53,8 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | ADR-036 | Servidor de capturas | Loopback sin servicio en primer plano (parte 1) | Aceptada |
 | ADR-037 | Parser de transferencias | Queda pendiente para Prompt 4/5; por ahora se registran a mano | Aceptada |
 | ADR-038 | Origen mock/bot | La captura conserva `mock`; la transacción confirmada siempre es `bot` | Aceptada |
+| ADR-039 | Autorización del bot | Sin TOFU: el número autorizado se configura a mano; sin él no se procesa nada | Aceptada |
+| ADR-040 | Filtro de texto del bot | Solo se reenvían textos con un monto; la charla no ensucia la bandeja | Aceptada |
 
 ---
 
@@ -515,6 +517,30 @@ Cada decisión cerrada del proyecto queda aquí con su motivo, sus consecuencias
 | Contexto | Se necesita auditar si una captura fue simulada o real (para depurar el canal y la primera prueba en el teléfono), pero para las finanzas la transacción solo debe distinguir "la registró el canal" de "la registré yo". |
 | Consecuencias | Se puede filtrar/auditar la bandeja por origen y saber qué capturas fueron de prueba; los reportes ven la transacción como `bot`, sin ruido del simulador. El simulador debe enviar `X-Bot-Simulado: 1` para quedar como `mock`. |
 | Alternativas descartadas | Guardar `mock` también en la transacción (contamina reportes); perder el origen en la captura (no se podría distinguir una prueba de un mensaje real); usar solo `manual/bot` en ambos lados (sin trazabilidad de simulaciones). |
+
+## ADR-039 — Autorización del bot sin TOFU
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-039 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | El número autorizado se configura **explícitamente** en `config.json` (o con el prompt de la primera ejecución en terminal interactiva). Si falta, el bot **no procesa ningún mensaje** y avisa en la terminal. Se descarta el esquema TOFU (“el primer mensaje recibido queda autorizado”). |
+| Contexto | Con TOFU, cualquiera que consiguiera el número del bot y escribiera antes que el dueño quedaría autorizado y podría inyectar capturas. Es un riesgo de seguridad inaceptable incluso en un número secundario. |
+| Consecuencias | Hay un paso manual de configuración antes del primer mensaje; a cambio, ningún tercero puede activar el bot por su cuenta. Los tests cubren (A) sin configurar → no procesa, (B) otro remitente → ignora, (C) remitente correcto → procesa. |
+| Alternativas descartadas | TOFU (riesgo de seguridad); preguntar por consola siempre (no sirve con Termux:Boot sin TTY); autorizar por lista de números en la app (más piezas y otro contrato). |
+
+## ADR-040 — El bot solo reenvía textos con un monto
+
+| Campo | Contenido |
+|---|---|
+| ID | ADR-040 |
+| Fecha | 2026-11-24 |
+| Estado | Aceptada |
+| Decisión | Antes de enviar un texto a la app, el bot comprueba que contenga un monto (`18.500`, `20k`, `1.5 millones`, `$20.000`). Si no lo contiene, responde con un ejemplo y **no crea captura**. Si contiene monto pero no categoría, sí la envía: la app propone “Otros” y el usuario completa. |
+| Contexto | El dueño usa el mismo WhatsApp para chatear; cada “hola” o “¿cómo estás?” no debe ensuciar la bandeja. La app no expone un endpoint de “parsear sin guardar”, y añadirlo cambiaría el contrato. |
+| Consecuencias | Se evita ruido en la bandeja y mensajes innecesarios a la app; un mensaje de transacción sin monto (ej. “gasté en mercado”) se rechaza con un ejemplo, así que el usuario debe escribir el monto. La heurística está probada con “hola”, monto sin categoría y formatos no soportados. |
+| Alternativas descartadas | Enviar todo y filtrar en la app (la bandeja se llena de charla); endpoint nuevo de parseo (cambia contrato sin necesidad); bloquear cualquier texto sin categoría (rechazaría “gasté 20.000”, que sí es válido). |
 
 ## Decisiones que no se cambian sin el dueño
 

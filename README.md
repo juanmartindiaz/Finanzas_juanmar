@@ -11,11 +11,11 @@ uso personal. Consta de **dos componentes**:
    los pasará a la app por HTTP local, y enviará los mensajes que la app le pida (por ejemplo,
    los reportes diarios). Se conecta con Baileys, sin la API oficial de Meta.
 
-> **Estado actual: Fase 2 parte 1 completada** (bandeja de capturas + canal HTTP local). Ya se
-> pueden registrar cuentas, categorías, etiquetas, ingresos, gastos y transferencias, ver el
-> dashboard, **capturar por texto** con parser en español y **recibir capturas por HTTP** del
-> simulador de bot. El bot real de WhatsApp, el OCR y la transcripción llegan en prompts
-> posteriores.
+> **Estado actual: Fase 2 parte 2 completada** (bot real con Baileys + bandeja + canal HTTP).
+> La app registra cuentas, categorías, etiquetas, ingresos, gastos y transferencias, muestra el
+> dashboard, captura por texto con parser en español y recibe capturas por HTTP. El **bot de
+> WhatsApp** ya está implementado en `whatsapp_bot/`; falta probarlo en el teléfono real (Termux
+> + número secundario). OCR, transcripción y foreground service vienen en los próximos prompts.
 
 ---
 
@@ -149,7 +149,10 @@ Captura real de la Fase 1:
 ```powershell
 cd app
 flutter analyze     # "No issues found!"
-flutter test        # "All tests passed!" (68 pruebas)
+flutter test        # "All tests passed!" (68 pruebas de la app)
+
+cd ../whatsapp_bot
+npm test            # 23 pruebas del bot con transporte falso
 ```
 
 ### Probar los flujos principales (5 minutos)
@@ -200,18 +203,22 @@ flutter test        # "All tests passed!" (68 pruebas)
 
 ---
 
-## 7. El bot de WhatsApp (por ahora, solo esqueleto)
+## 7. El bot de WhatsApp (Fase 2 parte 2)
 
-En la Fase 1 el bot **no** se conecta a WhatsApp ni instala Baileys. Solo imprime un mensaje:
+El bot real está en `whatsapp_bot/`: Node.js + Baileys, corre en **Termux** con un número
+secundario, guarda una cola persistente y entrega a la app por HTTP local. Responde por WhatsApp
+(texto/audio/foto), ignora grupos y números no autorizados, y reintenta si la app está cerrada.
 
-```powershell
-cd whatsapp_bot
-node index.js
-# → Bot Gestor Finanzas — pendiente Fase 2
-```
+- Guía completa de instalación y operación en Termux:
+  [`whatsapp_bot/README.md`](whatsapp_bot/README.md).
+- Configuración: copia `config.example.json` a `config.json`, pega el token de Ajustes →
+  Canal bot y escribe tu número autorizado.
+- Pruebas del bot en el PC (sin WhatsApp): `cd whatsapp_bot && npm install && npm test`
+  (23 pruebas con transporte falso).
+- `config.json`, `auth/`, `cola/` y `logs/` están en `.gitignore`: no se suben al repositorio.
 
-La instalación real en **Termux** (teléfono Android, número secundario) se hace en la
-**Fase 5**. Pasos provisionales en [`whatsapp_bot/README.md`](whatsapp_bot/README.md).
+**Pendiente de validar en tu teléfono:** el QR y la conexión real con WhatsApp (no se pueden
+probar en el emulador). Sigue el protocolo de `whatsapp_bot/README.md` §14.
 
 ---
 
@@ -238,7 +245,7 @@ formulario, ajustes, categorías y monedas.
 |---|---|---|
 | **0** | Fundación | ✅ completada |
 | **1** | MVP local | ✅ completada |
-| **2** | Captura: bandeja + canal HTTP (parte 1); bot real, OCR, audio y foreground service (pendiente) | ✅ parte 1 / ⏳ resto |
+| **2** | Captura: bandeja + canal HTTP + **bot de WhatsApp con Baileys**; OCR, audio y foreground service pendientes | ✅ partes 1 y 2 / ⏳ resto |
 | **3** | Presupuestos, deudas con personas y créditos, metas, recurrentes con notificaciones | — |
 | **4** | Reportes con gráficas, PDF, reportes diarios por WhatsApp, conversión diaria de monedas, respaldo/restauración en Google Drive | — |
 | **5** | Endurecimiento, pruebas en teléfono real, APK final, guía del bot en Termux, PIN/biometría | — |
@@ -277,9 +284,9 @@ El detalle y los motivos están en [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## 12. Lo que **no** existe todavía (a propósito)
 
-- Bot real de WhatsApp con Baileys y cola de salida (prompt siguiente).
 - OCR de recibos y transcripción de audio (fases 2.4/2.5); por ahora solo se guardan.
 - Servicio en primer plano: el servidor se apaga con la app (fase 2.6).
+- Cola de salida y reportes automáticos por WhatsApp (Fase 4).
 - Presupuestos, deudas, créditos, metas y recurrentes (Fase 3).
 - Reportes, PDF, conversión automática de monedas y respaldo en Drive (Fase 4).
 - PIN/biometría y APK firmado de entrega (Fase 5).
