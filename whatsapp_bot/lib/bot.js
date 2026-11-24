@@ -33,6 +33,10 @@ export function crearBot({
     return normalizarNumero(config.numero_autorizado) || null;
   }
 
+  function lidAutorizado() {
+    return normalizarNumero(config.lid_autorizado) || null;
+  }
+
   function avisarConfigFaltante() {
     if (avisoConfig) return;
     avisoConfig = true;
@@ -97,10 +101,16 @@ export function crearBot({
       logger.debug('Mensaje ignorado: grupo o estado.', 'filtro');
       return;
     }
-    if (normalizarNumero(evento.remitente) !== numeroAutorizado()) {
+    const numeroRemitente = normalizarNumero(evento.remitente);
+    const numeroLid = normalizarNumero(evento.lid ?? '');
+    const autorizadoPorNumero =
+      numeroAutorizado() !== null && numeroRemitente === numeroAutorizado();
+    const autorizadoPorLid =
+      lidAutorizado() !== null && numeroLid === lidAutorizado();
+    if (!autorizadoPorNumero && !autorizadoPorLid) {
       logger.info(
-        `Mensaje ignorado de remitente no autorizado: ${normalizarNumero(evento.remitente)}` +
-          (evento.lid ? ` (LID ${evento.lid})` : ''),
+        `Mensaje ignorado de remitente no autorizado: ${numeroRemitente}` +
+          (numeroLid ? ` (LID ${numeroLid})` : ''),
         'filtro',
       );
       return;

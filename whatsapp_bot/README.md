@@ -88,6 +88,16 @@ Contenido:
 - `token`: el que muestra la app en Ajustes → Canal bot.
 - `puerto_app`: 8787 por defecto; cámbialo solo si lo cambiaste en la app.
 
+Opcional: si en el log aparece `Mensaje ignorado ... (LID 690...)` incluso
+después de actualizar, agrega el LID que muestra el log como respaldo:
+
+```json
+"lid_autorizado": "69072452640988"
+```
+
+El bot intenta traducir el LID al número automáticamente con Baileys; este
+campo es solo un plan B para versiones de WhatsApp que no entregan el número.
+
 Si falta el número y ejecutas `node index.js` en una terminal interactiva, el
 bot te lo pedirá una vez y lo guardará. Si no hay terminal interactiva, edita el
 archivo a mano.

@@ -129,6 +129,20 @@ describe('bot: autorización (sin TOFU)', () => {
     expect(entorno.servidor.peticiones).toHaveLength(1);
     await entorno.cerrar();
   });
+
+  test('(D) LID autorizado en config permite procesar', async () => {
+    const entorno = await crearEntorno({
+      config: { lid_autorizado: '69072452640988' },
+    });
+    await entorno.transporte.emitir(
+      eventoTexto({
+        remitente: '69072452640988@lid',
+        lid: '69072452640988@lid',
+      }),
+    );
+    expect(entorno.servidor.peticiones).toHaveLength(1);
+    await entorno.cerrar();
+  });
 });
 
 describe('bot: errores del servidor', () => {

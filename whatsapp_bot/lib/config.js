@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const POR_DEFECTO = {
   numero_autorizado: null,
+  lid_autorizado: null,
   token: '',
   puerto_app: 8787,
 };
@@ -15,6 +16,7 @@ export function cargarConfig(ruta) {
     const crudo = JSON.parse(fs.readFileSync(ruta, 'utf8'));
     return {
       numero_autorizado: crudo.numero_autorizado ?? null,
+      lid_autorizado: crudo.lid_autorizado ?? null,
       token: String(crudo.token ?? ''),
       puerto_app: Number(crudo.puerto_app) || POR_DEFECTO.puerto_app,
     };
@@ -30,6 +32,7 @@ export function guardarConfig(ruta, config) {
     JSON.stringify(
       {
         numero_autorizado: config.numero_autorizado ?? null,
+        lid_autorizado: config.lid_autorizado ?? null,
         token: config.token ?? '',
         puerto_app: config.puerto_app ?? POR_DEFECTO.puerto_app,
       },

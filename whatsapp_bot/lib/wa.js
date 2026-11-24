@@ -106,23 +106,51 @@ export class TransporteBaileys {
       }
     });
 
-    sock.ev.on('messages.upsert', (evento) => {
+    sock.ev.on('messages.upsert', async (evento) => {
       if (evento?.type !== 'notify') return;
       for (const mensaje of evento.messages ?? []) {
-        const normalizado = this.#normalizar(mensaje);
+        const normalizado = await this.#normalizar(mensaje);
         if (!normalizado) continue;
-        Promise.resolve(this.onMensaje?.(normalizado)).catch((error) =>
-          this.logger.error(`Error procesando mensaje: ${error.message}`, 'wa'),
-        );
+        try {
+          await this.onMensaje?.(normalizado);
+        } catch (error) {
+          this.logger.error(
+            `Error procesando mensaje: ${error.message}`,
+            'wa',
+          );
+        }
       }
     });
   }
 
   #normalizar(mensaje) {
+    return this.#normalizarAsync(mensaje);
+  }
+
+  async #normalizarAsync(mensaje) {
     const key = mensaje?.key;
     if (!key?.remoteJid || key.fromMe) return null;
     const jidOriginal = key.remoteJid;
-    const jid = elegirJidRemitente(key);
+    let jid = elegirJidRemitente(key);
+
+    // WhatsApp puede entregar solo el LID; Baileys guarda el mapa LID→número.
+    if (jid?.endsWith('@lid')) {
+      try {
+        const pn = await this.sock?.signalRepository?.lidMapping?.getPNForLID(
+          jid,
+        );
+        if (pn) {
+          this.logger.debug(`LID ${jid} → número ${pn}`, 'wa');
+          jid = pn;
+        }
+      } catch (error) {
+        this.logger.debug(
+          `No se pudo resolver LID ${jid}: ${error?.message}`,
+          'wa',
+        );
+      }
+    }
+
     const contenido = mensaje.message ?? {};
     let tipo = 'otro';
     let texto = null;
