@@ -51,8 +51,12 @@ jobs:
         working-directory: app
         run: |
           VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))
-          echo "versionCode=$VERSION_CODE"
-          flutter build apk --debug --build-number="$VERSION_CODE"
+          BASE_VERSION=$(grep -m1 '^version:' pubspec.yaml | sed 's/version: //' | cut -d+ -f1)
+          BUILD_NAME="${BASE_VERSION}.${GITHUB_RUN_NUMBER}"
+          echo "versionCode=$VERSION_CODE versionName=$BUILD_NAME"
+          flutter build apk --debug \
+            --build-name="$BUILD_NAME" \
+            --build-number="$VERSION_CODE"
           mkdir -p ../dist
           cp build/app/outputs/flutter-apk/app-debug.apk \
              "../dist/gestor-finanzas-${GITHUB_RUN_NUMBER}.apk"
@@ -68,7 +72,6 @@ jobs:
             - Commit: `${{ github.sha }}`
             - versionCode: `${{ github.run_number }}` + 1000
             - Instalar encima de la versión anterior (misma firma; no borra datos).
-
             Descarga el APK o usa Obtainium para actualizar.
           files: dist/gestor-finanzas-${{ github.run_number }}.apk
           make_latest: true

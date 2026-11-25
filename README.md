@@ -17,6 +17,10 @@ Consta de **dos componentes**:
 > registra solo texto y fotos cuando hay monto; si falta la cuenta usa la cuenta por defecto
 > (o la primera activa) y la marca incompleta. La bandeja es **Actividad de WhatsApp**, un
 > historial editable. La transcripción de audio (2.5) es lo que queda de la Fase 2.
+>
+> **Actualizaciones sin USB:** GitHub Actions publica un APK en cada push y Obtainium lo
+> instala encima conservando los datos. Instrucciones únicas en
+> [`docs/ACTUALIZACIONES.md`](docs/ACTUALIZACIONES.md).
 
 ---
 
